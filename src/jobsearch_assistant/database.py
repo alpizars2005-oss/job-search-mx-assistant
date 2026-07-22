@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -24,8 +26,18 @@ class ApplicationDatabase:
         connection.execute("PRAGMA journal_mode = WAL")
         return connection
 
+    @contextmanager
+    def _connection(self) -> Iterator[sqlite3.Connection]:
+        """Yield a transactional connection and always release its file handles."""
+        connection = self.connect()
+        try:
+            with connection:
+                yield connection
+        finally:
+            connection.close()
+
     def initialize(self) -> None:
-        with self.connect() as connection:
+        with self._connection() as connection:
             connection.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS meta (
@@ -65,7 +77,7 @@ class ApplicationDatabase:
         if record.status not in VALID_STATUSES:
             raise ValueError(f"Invalid status: {record.status}")
         payload = json.dumps(record.evaluation.to_dict(), ensure_ascii=False)
-        with self.connect() as connection:
+        with self._connection() as connection:
             cursor = connection.execute(
                 """
                 INSERT INTO applications(
@@ -100,7 +112,7 @@ class ApplicationDatabase:
             query += " WHERE status = ?"
             params = (status,)
         query += " ORDER BY updated_at DESC, id DESC"
-        with self.connect() as connection:
+        with self._connection() as connection:
             rows = connection.execute(query, params).fetchall()
         return [self._row_to_record(row) for row in rows]
 
@@ -120,7 +132,7 @@ class ApplicationDatabase:
         assignments.append("updated_at = ?")
         values.append(datetime.now(timezone.utc).isoformat(timespec="seconds"))
         values.append(record_id)
-        with self.connect() as connection:
+        with self._connection() as connection:
             cursor = connection.execute(
                 f"UPDATE applications SET {', '.join(assignments)} WHERE id = ?",
                 tuple(values),
@@ -131,7 +143,7 @@ class ApplicationDatabase:
         return self.update(record_id, status=status)
 
     def find_duplicate(self, job: JobPosting) -> int | None:
-        with self.connect() as connection:
+        with self._connection() as connection:
             if job.url.strip():
                 row = connection.execute(
                     "SELECT id FROM applications WHERE lower(trim(url)) = lower(trim(?)) LIMIT 1",
@@ -152,7 +164,7 @@ class ApplicationDatabase:
 
     def summary(self) -> dict[str, int]:
         result = {status: 0 for status in VALID_STATUSES}
-        with self.connect() as connection:
+        with self._connection() as connection:
             rows = connection.execute(
                 "SELECT status, COUNT(*) AS count FROM applications GROUP BY status"
             ).fetchall()
