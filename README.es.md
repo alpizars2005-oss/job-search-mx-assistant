@@ -16,14 +16,29 @@ Asistente bilingüe y privado para buscar trabajo en **Windows y Linux**. Permit
 
 ## Inicio rápido
 
-### Windows
+### Windows: opción sencilla
+
+1. Descarga o clona el repositorio.
+2. Extrae el ZIP completo si lo descargaste como archivo comprimido.
+3. Ejecuta `INSTALL_WINDOWS.bat` una sola vez.
+4. Después, abre la aplicación con `START_WINDOWS.bat`.
+
+Estos iniciadores no dependen de la política de ejecución de PowerShell y detectan automáticamente si Windows utiliza `py` o `python`.
+
+### Windows: instalación manual
 
 ```powershell
 py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-py -m pip install -e .
-jobsearch init --language es
-jobsearch-gui
+.\.venv\Scripts\python.exe -m pip install -e .
+.\.venv\Scripts\python.exe -m jobsearch_assistant init --language es
+.\.venv\Scripts\python.exe -m jobsearch_assistant doctor
+.\.venv\Scripts\python.exe -m jobsearch_assistant gui
+```
+
+Si `py` no existe, sustituye el primer comando por:
+
+```powershell
+python -m venv .venv
 ```
 
 ### Linux
