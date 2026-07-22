@@ -1,0 +1,36 @@
+{
+  "name": "Example Candidate",
+  "headline": "Bilingual junior technology professional",
+  "location": "Mexico",
+  "languages": ["Spanish", "English"],
+  "skills": [
+    "customer support",
+    "troubleshooting",
+    "python",
+    "linux",
+    "git"
+  ],
+  "target_roles": [
+    "technical support",
+    "help desk",
+    "junior developer",
+    "qa tester",
+    "cybersecurity analyst"
+  ],
+  "preferred_locations": ["remote", "mexico", "latam"],
+  "remote_only": true,
+  "accepted_seniority": ["intern", "trainee", "entry", "junior", "associate"],
+  "deal_breakers": [
+    "commission only",
+    "solo comisiones",
+    "upfront payment",
+    "pago por adelantado"
+  ],
+  "skill_aliases": {
+    "customer support": ["customer service", "atencion al cliente", "support"],
+    "troubleshooting": ["diagnostics", "problem solving", "resolucion de problemas"],
+    "python": ["python3", "scripting", "automation"],
+    "linux": ["ubuntu", "bash", "terminal"],
+    "git": ["github", "version control", "control de versiones"]
+  }
+}
