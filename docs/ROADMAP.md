@@ -2,11 +2,12 @@
 
 ## Near term
 
-- Edit notes and status directly from the GUI.
-- Duplicate job detection by normalized URL and company/title.
-- Application funnel analytics.
-- Profile import/export wizard.
-- Better skill taxonomy and configurable weights.
+- Application funnel analytics and conversion metrics.
+- Guided profile import/export wizard.
+- Better skill taxonomy and configurable scoring weights.
+- Encrypted backup and restore workflow.
+- Accessibility and keyboard-navigation improvements.
+- Additional interface translations contributed by the community.
 
 ## Optional integrations
 
