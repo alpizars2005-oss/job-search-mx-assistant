@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-  {name = "Angel Alfredo Alpizar Sanchez"}
+  {name = "Pizzaroles"}
 ]
 keywords = ["jobs", "career", "resume", "ats", "python", "tkinter", "bilingual"]
 classifiers = [
