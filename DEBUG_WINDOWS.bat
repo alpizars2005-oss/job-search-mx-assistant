@@ -10,7 +10,7 @@ set "LOG_FILE=%CD%\jobsearch-debug.log"
 
 if not exist ".venv\Scripts\python.exe" (
     echo The virtual environment was not found.
-    echo Run INSTALL_WINDOWS.bat first.
+    echo Open START_WINDOWS.bat first; it now installs and starts everything automatically.
     >>"%LOG_FILE%" echo ERROR: .venv\Scripts\python.exe was not found.
     pause
     exit /b 1
