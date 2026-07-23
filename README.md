@@ -35,56 +35,68 @@ The application is built from scratch and is inspired by the workflow concept of
 2. Fully extract the ZIP if you downloaded an archive.
 3. Double-click **`START_WINDOWS.bat`**.
 
-The launcher automatically:
+The launcher detects Python, creates or repairs `.venv`, installs the project, validates Tkinter and SQLite, runs diagnostics, and opens the desktop interface. Startup failures are written to `jobsearch-startup.log`.
 
-- detects `py` or `python`;
-- requires Python 3.10 or newer;
-- creates or repairs `.venv`;
-- installs the local package when needed;
-- validates Tkinter, SQLite, and the user workspace;
-- opens the desktop interface;
-- writes startup failures to `jobsearch-startup.log`.
-
-The same launcher can be run from PowerShell with one command:
+The same launcher can be run from PowerShell:
 
 ```powershell
 .\START_WINDOWS.bat
 ```
 
-There is no need to run a separate installer, activate the virtual environment, or change PowerShell's execution policy. The legacy `INSTALL_WINDOWS.bat` now redirects to the same one-click launcher.
+There is no need to run a separate installer, activate the virtual environment, or change PowerShell's execution policy. The legacy `INSTALL_WINDOWS.bat` redirects to the same launcher.
 
 > Requirement: Python 3.10 or newer. Keep **Add Python to PATH** and the **Tcl/Tk** component enabled when installing Python on Windows.
 
-For advanced diagnostics:
+### Linux: one-command launcher
+
+Download or clone the repository, open a terminal in its folder, and run:
+
+```bash
+bash START_LINUX.sh
+```
+
+This works even when an extracted ZIP does not preserve executable permissions. With a Git clone, direct execution can also be enabled:
+
+```bash
+chmod +x START_LINUX.sh
+./START_LINUX.sh
+```
+
+The launcher:
+
+- detects `python3` or `python` version 3.10 or newer;
+- creates or repairs `.venv`;
+- installs the local package when required;
+- validates Tkinter, SQLite, and the user workspace;
+- checks for an X11 or Wayland desktop session;
+- opens the GUI and writes failures to `jobsearch-startup.log`.
+
+When a system package is missing, it prints the appropriate installation command for Ubuntu/Debian/Mint, Fedora, Arch/Manjaro, or openSUSE. For example:
+
+```bash
+sudo apt update && sudo apt install python3 python3-venv python3-tk
+```
+
+Legacy Linux helpers now reuse the same startup process:
+
+```bash
+./scripts/install.sh
+./scripts/run-gui.sh
+```
+
+### Advanced diagnostics
+
+Windows:
 
 ```powershell
 notepad .\jobsearch-startup.log
 .\DEBUG_WINDOWS.bat
 ```
 
-### Linux
+Linux:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -e .
-jobsearch init
-jobsearch-gui
-```
-
-Or run the installer:
-
-```bash
-chmod +x scripts/*.sh
-./scripts/install.sh
-./scripts/run-gui.sh
-```
-
-Portable mode:
-
-```bash
-./scripts/run-cli.sh doctor
-./scripts/run-gui.sh
+cat jobsearch-startup.log
 ```
 
 ## CLI examples
