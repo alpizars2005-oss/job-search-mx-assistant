@@ -35,3 +35,10 @@ jobs:
           JOBSEARCH_PREPARE_ONLY: "1"
           JOBSEARCH_NONINTERACTIVE: "1"
         run: START_WINDOWS.bat
+      - name: One-click Linux launcher smoke test
+        if: runner.os == 'Linux' && matrix.python-version == '3.12'
+        shell: bash
+        env:
+          JOBSEARCH_PREPARE_ONLY: "1"
+          JOBSEARCH_NONINTERACTIVE: "1"
+        run: bash START_LINUX.sh
