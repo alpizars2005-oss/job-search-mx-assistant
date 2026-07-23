@@ -76,6 +76,14 @@ echo [5/5] Running diagnostics...
 if errorlevel 1 goto :failed
 
 >> "%LOG_FILE%" echo Diagnostics completed successfully.
+
+rem Used by GitHub Actions and advanced users to validate setup without opening a window.
+if /I "%JOBSEARCH_PREPARE_ONLY%"=="1" (
+    echo Preparation completed successfully.
+    >> "%LOG_FILE%" echo Preparation-only mode completed successfully.
+    exit /b 0
+)
+
 >> "%LOG_FILE%" echo Opening GUI at %DATE% %TIME%.
 
 echo.
@@ -108,7 +116,7 @@ echo [ERROR] Python 3.10 or newer was not found.
 echo Install Python and enable "Add Python to PATH", then open this file again.
 echo Download: https://www.python.org/downloads/windows/
 >> "%LOG_FILE%" echo ERROR: Python was not found.
-start "" "https://www.python.org/downloads/windows/" >nul 2>&1
+if /I not "%JOBSEARCH_NONINTERACTIVE%"=="1" start "" "https://www.python.org/downloads/windows/" >nul 2>&1
 goto :pause_error
 
 :python_too_old
@@ -138,5 +146,6 @@ echo notepad "%LOG_FILE%"
 
 :pause_error
 if exist "%ERROR_FILE%" del /q "%ERROR_FILE%" >nul 2>&1
+if /I "%JOBSEARCH_NONINTERACTIVE%"=="1" exit /b 1
 pause
 exit /b 1
