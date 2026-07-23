@@ -29,28 +29,37 @@ The application is built from scratch and is inspired by the workflow concept of
 
 ## Quick start
 
-### Windows PowerShell
+### Windows: one-click launcher
+
+1. Download or clone the repository.
+2. Fully extract the ZIP if you downloaded an archive.
+3. Double-click **`START_WINDOWS.bat`**.
+
+The launcher automatically:
+
+- detects `py` or `python`;
+- requires Python 3.10 or newer;
+- creates or repairs `.venv`;
+- installs the local package when needed;
+- validates Tkinter, SQLite, and the user workspace;
+- opens the desktop interface;
+- writes startup failures to `jobsearch-startup.log`.
+
+The same launcher can be run from PowerShell with one command:
 
 ```powershell
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-py -m pip install -e .
-jobsearch init
-jobsearch-gui
+.\START_WINDOWS.bat
 ```
 
-Or run the installer:
+There is no need to run a separate installer, activate the virtual environment, or change PowerShell's execution policy. The legacy `INSTALL_WINDOWS.bat` now redirects to the same one-click launcher.
+
+> Requirement: Python 3.10 or newer. Keep **Add Python to PATH** and the **Tcl/Tk** component enabled when installing Python on Windows.
+
+For advanced diagnostics:
 
 ```powershell
-.\scripts\install.ps1
-.\scripts\run-gui.ps1
-```
-
-Portable mode (no package installation):
-
-```powershell
-.\scripts\run-cli.ps1 doctor
-.\scripts\run-gui.ps1
+notepad .\jobsearch-startup.log
+.\DEBUG_WINDOWS.bat
 ```
 
 ### Linux
@@ -71,7 +80,7 @@ chmod +x scripts/*.sh
 ./scripts/run-gui.sh
 ```
 
-Portable mode (no package installation):
+Portable mode:
 
 ```bash
 ./scripts/run-cli.sh doctor
@@ -182,7 +191,7 @@ This project does not automatically submit applications, bypass CAPTCHAs, reuse 
 
 ## Roadmap
 
-See [docs/ROADMAP.md](docs/ROADMAP.md). Planned additions include optional local LLM support, browser-assisted import, duplicate detection, richer analytics, and resume-template plugins.
+See [docs/ROADMAP.md](docs/ROADMAP.md). Planned additions include optional local LLM support, browser-assisted import, richer analytics, and resume-template plugins.
 
 ## License
 
