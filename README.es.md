@@ -16,30 +16,41 @@ Asistente bilingüe y privado para buscar trabajo en **Windows y Linux**. Permit
 
 ## Inicio rápido
 
-### Windows: opción sencilla
+### Windows: un solo archivo
 
 1. Descarga o clona el repositorio.
-2. Extrae el ZIP completo si lo descargaste como archivo comprimido.
-3. Ejecuta `INSTALL_WINDOWS.bat` una sola vez.
-4. Después, abre la aplicación con `START_WINDOWS.bat`.
+2. Extrae completamente el ZIP si lo descargaste como archivo comprimido.
+3. Haz doble clic en **`START_WINDOWS.bat`**.
 
-Estos iniciadores no dependen de la política de ejecución de PowerShell y detectan automáticamente si Windows utiliza `py` o `python`.
+Eso es todo. El iniciador:
 
-### Windows: instalación manual
+- detecta `py` o `python` automáticamente;
+- comprueba que Python sea 3.10 o superior;
+- crea o repara `.venv` cuando sea necesario;
+- instala el proyecto localmente la primera vez;
+- comprueba Tkinter, SQLite y la configuración;
+- abre la interfaz gráfica;
+- conserva un reporte en `jobsearch-startup.log` si algo falla.
 
-```powershell
-py -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e .
-.\.venv\Scripts\python.exe -m jobsearch_assistant init --language es
-.\.venv\Scripts\python.exe -m jobsearch_assistant doctor
-.\.venv\Scripts\python.exe -m jobsearch_assistant gui
-```
-
-Si `py` no existe, sustituye el primer comando por:
+También puede iniciarse desde PowerShell con una sola línea:
 
 ```powershell
-python -m venv .venv
+.\START_WINDOWS.bat
 ```
+
+No es necesario ejecutar previamente `INSTALL_WINDOWS.bat`, activar el entorno virtual ni cambiar la política de ejecución de PowerShell.
+
+> Requisito: Python 3.10 o superior. Durante la instalación oficial de Python en Windows, activa **Add Python to PATH** y conserva el componente **Tcl/Tk**.
+
+### Windows: diagnóstico avanzado
+
+Si el iniciador no logra abrir la aplicación, revisa el reporte con:
+
+```powershell
+notepad .\jobsearch-startup.log
+```
+
+También se conserva `DEBUG_WINDOWS.bat` para diagnósticos manuales avanzados.
 
 ### Linux
 
