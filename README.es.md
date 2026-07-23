@@ -22,15 +22,7 @@ Asistente bilingüe y privado para buscar trabajo en **Windows y Linux**. Permit
 2. Extrae completamente el ZIP si lo descargaste como archivo comprimido.
 3. Haz doble clic en **`START_WINDOWS.bat`**.
 
-Eso es todo. El iniciador:
-
-- detecta `py` o `python` automáticamente;
-- comprueba que Python sea 3.10 o superior;
-- crea o repara `.venv` cuando sea necesario;
-- instala el proyecto localmente la primera vez;
-- comprueba Tkinter, SQLite y la configuración;
-- abre la interfaz gráfica;
-- conserva un reporte en `jobsearch-startup.log` si algo falla.
+El iniciador detecta Python, crea o repara `.venv`, instala el programa, comprueba Tkinter y SQLite, ejecuta el diagnóstico y abre la interfaz. Si algo falla, conserva el reporte en `jobsearch-startup.log`.
 
 También puede iniciarse desde PowerShell con una sola línea:
 
@@ -42,24 +34,70 @@ No es necesario ejecutar previamente `INSTALL_WINDOWS.bat`, activar el entorno v
 
 > Requisito: Python 3.10 o superior. Durante la instalación oficial de Python en Windows, activa **Add Python to PATH** y conserva el componente **Tcl/Tk**.
 
-### Windows: diagnóstico avanzado
+### Linux: un solo comando
 
-Si el iniciador no logra abrir la aplicación, revisa el reporte con:
+Descarga o clona el repositorio, abre una terminal en su carpeta y ejecuta:
+
+```bash
+bash START_LINUX.sh
+```
+
+Ese comando funciona incluso cuando un ZIP no conserva permisos de ejecución. En una clonación también puedes habilitar el doble clic o la ejecución directa:
+
+```bash
+chmod +x START_LINUX.sh
+./START_LINUX.sh
+```
+
+El iniciador:
+
+- detecta `python3` o `python` con versión 3.10 o superior;
+- crea o reconstruye `.venv` cuando sea necesario;
+- instala el proyecto la primera vez;
+- comprueba Tkinter, SQLite y la configuración;
+- detecta si existe una sesión gráfica X11 o Wayland;
+- abre la interfaz y guarda los errores en `jobsearch-startup.log`.
+
+Si faltan paquetes del sistema, muestra el comando correcto para Ubuntu/Debian/Mint, Fedora, Arch/Manjaro u openSUSE. Por ejemplo, en Ubuntu o Linux Mint:
+
+```bash
+sudo apt update && sudo apt install python3 python3-venv python3-tk
+```
+
+### Diagnóstico avanzado
+
+Windows:
 
 ```powershell
 notepad .\jobsearch-startup.log
 ```
 
-También se conserva `DEBUG_WINDOWS.bat` para diagnósticos manuales avanzados.
+Linux:
+
+```bash
+cat jobsearch-startup.log
+```
+
+## Instalación manual opcional
+
+### Windows
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e .
+.\.venv\Scripts\python.exe -m jobsearch_assistant init --language es
+.\.venv\Scripts\python.exe -m jobsearch_assistant doctor
+.\.venv\Scripts\python.exe -m jobsearch_assistant gui
+```
 
 ### Linux
 
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -e .
-jobsearch init --language es
-jobsearch-gui
+.venv/bin/python -m pip install -e .
+.venv/bin/python -m jobsearch_assistant init --language es
+.venv/bin/python -m jobsearch_assistant doctor
+.venv/bin/python -m jobsearch_assistant gui
 ```
 
 ## Datos personales
