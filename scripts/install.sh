@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-set -euo pipefail
-cd "$(dirname "$0")/.."
-
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install -e .
-python -m jobsearch_assistant init --language es
-printf 'Installation complete. Run ./scripts/run-gui.sh\n'
+set -Eeuo pipefail
+ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+JOBSEARCH_PREPARE_ONLY=1 exec bash "$ROOT_DIR/START_LINUX.sh"
