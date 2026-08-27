@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 title Job Search Assistant
 
@@ -34,6 +34,8 @@ if exist "%VENV_PYTHON%" (
 rem Find a system Python only when a virtual environment must be created.
 rem Prefer the Python already selected on PATH (for example by setup-python,
 rem pyenv, or a user's active install) before falling back to the Windows py launcher.
+rem Delayed expansion is required because PYTHON_CMD is assigned and consumed
+rem inside this same parenthesized block.
 if not exist "%VENV_PYTHON%" (
     where python >nul 2>&1
     if not errorlevel 1 set "PYTHON_CMD=python"
@@ -46,11 +48,11 @@ if not exist "%VENV_PYTHON%" (
     if not defined PYTHON_CMD goto :python_missing
 
     echo [1/5] Checking Python...
-    %PYTHON_CMD% -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)" >> "%LOG_FILE%" 2>&1
+    !PYTHON_CMD! -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)" >> "%LOG_FILE%" 2>&1
     if errorlevel 1 goto :python_too_old
 
     echo [2/5] Creating the private environment...
-    %PYTHON_CMD% -m venv ".venv" >> "%LOG_FILE%" 2>&1
+    !PYTHON_CMD! -m venv ".venv" >> "%LOG_FILE%" 2>&1
     if errorlevel 1 goto :failed
 )
 
