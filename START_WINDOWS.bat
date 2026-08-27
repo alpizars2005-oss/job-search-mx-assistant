@@ -32,13 +32,15 @@ if exist "%VENV_PYTHON%" (
 )
 
 rem Find a system Python only when a virtual environment must be created.
+rem Prefer the Python already selected on PATH (for example by setup-python,
+rem pyenv, or a user's active install) before falling back to the Windows py launcher.
 if not exist "%VENV_PYTHON%" (
-    where py >nul 2>&1
-    if not errorlevel 1 set "PYTHON_CMD=py -3"
+    where python >nul 2>&1
+    if not errorlevel 1 set "PYTHON_CMD=python"
 
     if not defined PYTHON_CMD (
-        where python >nul 2>&1
-        if not errorlevel 1 set "PYTHON_CMD=python"
+        where py >nul 2>&1
+        if not errorlevel 1 set "PYTHON_CMD=py -3"
     )
 
     if not defined PYTHON_CMD goto :python_missing
