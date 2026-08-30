@@ -107,6 +107,13 @@ if [[ ! -x "$VENV_PYTHON" ]]; then
   fi
 fi
 
+# Best-effort source update. It only fast-forwards a clean official main checkout;
+# feature branches, local changes, divergent history, CI and network failures are untouched.
+if [[ -f "$ROOT_DIR/scripts/auto_update.py" ]]; then
+  printf '[update] Checking for a safe source update...\n'
+  "$VENV_PYTHON" "$ROOT_DIR/scripts/auto_update.py" >>"$LOG_FILE" 2>&1 || true
+fi
+
 printf '[3/5] Checking the application installation...\n'
 if ! "$VENV_PYTHON" -c 'import jobsearch_assistant' >>"$LOG_FILE" 2>&1; then
   printf 'Installing Job Search Assistant for the first time...\n'
