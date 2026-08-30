@@ -56,6 +56,13 @@ if not exist "%VENV_PYTHON%" (
     if errorlevel 1 goto :failed
 )
 
+rem Best-effort source update. It only fast-forwards a clean official main checkout;
+rem feature branches, local changes, divergent history, CI and network failures are untouched.
+if exist "scripts\auto_update.py" (
+    echo [update] Checking for a safe source update...
+    "%VENV_PYTHON%" "scripts\auto_update.py" >> "%LOG_FILE%" 2>&1
+)
+
 rem Install only when the editable package is missing. Source updates are picked up automatically.
 echo [3/5] Checking the application installation...
 "%VENV_PYTHON%" -c "import jobsearch_assistant" >> "%LOG_FILE%" 2>&1
