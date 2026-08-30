@@ -27,7 +27,7 @@ jobs:
       - name: Dependency health
         run: python -m pip check
       - name: Compile source
-        run: python -m compileall -q src tests run_cli.py run_gui.py
+        run: python -m compileall -q src scripts tests run_cli.py run_gui.py
       - name: Test
         run: python -m unittest discover -s tests -v
       - name: CLI smoke test
