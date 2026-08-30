@@ -7,6 +7,18 @@ from pathlib import Path
 from .models import ApplicationRecord
 
 
+_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _csv_safe(value):
+    """Return spreadsheet-safe CSV text without mutating stored application data."""
+    if not isinstance(value, str):
+        return value
+    if value.startswith(_FORMULA_PREFIXES):
+        return "'" + value
+    return value
+
+
 def export_csv(records: list[ApplicationRecord], output: Path) -> Path:
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("w", encoding="utf-8-sig", newline="") as handle:
@@ -31,24 +43,23 @@ def export_csv(records: list[ApplicationRecord], output: Path) -> Path:
         )
         writer.writeheader()
         for record in records:
-            writer.writerow(
-                {
-                    "id": record.id,
-                    "title": record.job.title,
-                    "company": record.job.company,
-                    "location": record.job.location,
-                    "url": record.job.url,
-                    "score": record.evaluation.score,
-                    "recommendation": record.evaluation.recommendation,
-                    "status": record.status,
-                    "matched_skills": "; ".join(record.evaluation.matched_skills),
-                    "missing_skills": "; ".join(record.evaluation.missing_skills),
-                    "risks": "; ".join(record.evaluation.risks),
-                    "notes": record.notes,
-                    "created_at": record.created_at,
-                    "updated_at": record.updated_at,
-                }
-            )
+            row = {
+                "id": record.id,
+                "title": record.job.title,
+                "company": record.job.company,
+                "location": record.job.location,
+                "url": record.job.url,
+                "score": record.evaluation.score,
+                "recommendation": record.evaluation.recommendation,
+                "status": record.status,
+                "matched_skills": "; ".join(record.evaluation.matched_skills),
+                "missing_skills": "; ".join(record.evaluation.missing_skills),
+                "risks": "; ".join(record.evaluation.risks),
+                "notes": record.notes,
+                "created_at": record.created_at,
+                "updated_at": record.updated_at,
+            }
+            writer.writerow({key: _csv_safe(value) for key, value in row.items()})
     return output
 
 
