@@ -28,3 +28,21 @@ Improve supply-chain security and maintainability of the existing privacy-first 
 ## Risk / rollback
 
 Very low. This audit pass is intentionally CI-focused because the application already has good project structure. Revert the workflow commit if CI behavior changes unexpectedly.
+
+---
+
+## Audit follow-up — CSV export safety (2026-08-30)
+
+### Finding
+
+Job titles, companies, locations, URLs, skills, risks and notes can originate from job postings or user input. CSV files are commonly opened in spreadsheet applications, where cells beginning with `=`, `+`, `-`, or `@` can be interpreted as formulas. The current exporter writes those strings verbatim.
+
+### Atomic commit plan
+
+1. Neutralize formula-like text only in CSV output while keeping JSON exports and stored application data unchanged.
+2. Add focused tests for formula prefixes, normal text and numeric values.
+3. Run the existing test suite/CI.
+
+### Risk / rollback
+
+Low. This changes only presentation in CSV exports. A leading apostrophe is added to potentially executable spreadsheet text; source records, scoring and JSON output remain untouched.
