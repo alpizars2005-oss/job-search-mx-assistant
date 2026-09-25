@@ -47,6 +47,36 @@ class CandidateProfile:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "CandidateProfile":
+        # JSON syntax and dataclass annotations do not validate imported types.
+        if not isinstance(data, dict):
+            raise ValueError("profile must be a JSON object")
+
+        for name in ("name", "headline", "location"):
+            if name in data and not isinstance(data[name], str):
+                raise ValueError(f"{name} must be a string")
+
+        for name in (
+            "languages", "skills", "target_roles", "preferred_locations",
+            "accepted_seniority", "deal_breakers",
+        ):
+            if name in data:
+                value = data[name]
+                if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+                    raise ValueError(f"{name} must be an array of strings")
+
+        if "remote_only" in data and not isinstance(data["remote_only"], bool):
+            raise ValueError("remote_only must be a boolean")
+
+        if "skill_aliases" in data:
+            aliases = data["skill_aliases"]
+            if not isinstance(aliases, dict) or not all(
+                isinstance(key, str)
+                and isinstance(values, list)
+                and all(isinstance(item, str) for item in values)
+                for key, values in aliases.items()
+            ):
+                raise ValueError("skill_aliases must map strings to arrays of strings")
+
         allowed = set(cls.__dataclass_fields__)
         return cls(**{key: value for key, value in data.items() if key in allowed})
 

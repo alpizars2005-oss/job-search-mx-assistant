@@ -52,10 +52,12 @@ def load_settings() -> dict[str, Any]:
     ensure_workspace()
     try:
         data = json.loads(settings_path().read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, json.JSONDecodeError, UnicodeError):
+        data = {}
+    if not isinstance(data, dict):
         data = {}
     language = data.get("language", "es")
-    if language not in {"en", "es"}:
+    if not isinstance(language, str) or language not in {"en", "es"}:
         language = "es"
     return {"language": language}
 
