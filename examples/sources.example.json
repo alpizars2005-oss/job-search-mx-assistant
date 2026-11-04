@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "limits": {
+    "timeout": 15,
+    "max_requests": 20,
+    "max_retries": 3,
+    "backoff_base": 1,
+    "max_backoff": 30,
+    "max_wait": 30,
+    "error_threshold": 5,
+    "pause_seconds": 300,
+    "min_interval": 1,
+    "max_response_bytes": 5242880,
+    "max_pages": 10,
+    "page_size": 100
+  },
+  "sources": [
+    {"provider": "greenhouse", "board": "gitlab", "company": "GitLab", "enabled": false},
+    {"provider": "lever", "board": "dlocal", "company": "dLocal", "enabled": false},
+    {"provider": "ashby", "board": "supabase", "company": "Supabase", "enabled": false}
+  ]
+}

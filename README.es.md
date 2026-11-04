@@ -100,6 +100,23 @@ python3 -m venv .venv
 .venv/bin/python -m jobsearch_assistant gui
 ```
 
+## Descubrimiento de vacantes públicas
+
+La terminal incluye lectores opt-in de Greenhouse, Lever y Ashby:
+
+```bash
+jobsearch discover
+jobsearch discover --config examples/sources.example.json
+```
+
+Sin configuración explícitamente habilitada no se hace ninguna solicitud.
+Para activar un tablero, copia el ejemplo fuera del repositorio, revisa sus
+condiciones y cambia solo su `enabled` a `true`. La salida JSON incluye
+procedencia, campos desconocidos y reportes de error/resultados parciales.
+No se presupone elegibilidad desde México ni se guardan resultados en SQLite.
+Consulta [configuración y límites](docs/JOB_SOURCES.md). Los perfiles siguen
+usando JSON y la GUI conserva su flujo actual.
+
 ## Datos personales
 
 El repositorio público no incluye el perfil de ninguna persona. Los datos se guardan en una carpeta local del usuario:
