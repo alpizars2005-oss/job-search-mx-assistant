@@ -119,6 +119,8 @@ class AdapterTests(unittest.TestCase):
                      'https://jobs.lever.co/other/Case-Sensitive-Id',
                      'https://jobs.lever.co/example/Case-Sensitive-Id?next=http://127.0.0.1',
                      'https://jobs.lever.co/example/%2e%2e',
+                     'https://jobs.lever.co/example/Case-Sensitive-Id?source=valid&',
+                     'https://jobs.lever.co/example/Case-Sensitive-Id?utm_source',
                      'https://jobs.lever.co/example/case-sensitive-id']
         for url in malicious:
             row = dict(LEVER, hostedUrl=url)

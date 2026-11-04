@@ -110,7 +110,9 @@ def _job_url(config: SourceConfig, value, job_id: str | None) -> tuple[str | Non
         identity = _identifier(parts[-1])
         if job_id is not None and identity != job_id:
             raise SourceError('unsafe_url')
-        for key, val in parse_qsl(parsed.query, strict_parsing=True, max_num_fields=20):
+        query = (parse_qsl(parsed.query, strict_parsing=True, max_num_fields=20)
+                 if parsed.query else [])
+        for key, val in query:
             if (not (key.startswith('utm_') or key in {'gh_src', 'source', 'lever-source', 'lever-origin'})
                     or not re.fullmatch(r'[A-Za-z0-9._~ -]{0,200}', val)):
                 raise SourceError('unsafe_url')

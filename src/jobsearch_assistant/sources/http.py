@@ -51,7 +51,8 @@ def validate_api_url(provider: str, url: str) -> None:
     if not re.fullmatch(_PATHS[provider], parsed.path):
         raise SourceError('unsafe_url')
     try:
-        pairs = parse_qsl(parsed.query, strict_parsing=True)
+        # Python 3.10 treats an empty query as an invalid field in strict mode.
+        pairs = parse_qsl(parsed.query, strict_parsing=True) if parsed.query else []
         query = dict(pairs)
         if len(pairs) != len(query):
             raise ValueError

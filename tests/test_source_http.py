@@ -218,3 +218,13 @@ class HttpTests(unittest.TestCase):
         client = self.client([BadStatusLine('private-value'), response()], min_interval=0)
         self.assertEqual(client.get_json('greenhouse', URL), {})
         self.assertEqual(len(self.transport.calls), 2)
+
+    def test_ashby_endpoint_without_query_works_with_strict_url_validation(self):
+        client = self.client([response(payload={'jobs': []})])
+        url = 'https://api.ashbyhq.com/posting-api/job-board/example'
+        self.assertEqual(client.get_json('ashby', url), {'jobs': []})
+        self.assertEqual(client.request_counts['ashby'], 1)
+        for suffix in ('?&', '?unexpected', '?next=https://evil.example'):
+            with self.subTest(suffix=suffix):
+                self.assert_code('unsafe_url', lambda: client.get_json('ashby', url + suffix))
+        self.assertEqual(client.request_counts['ashby'], 1)

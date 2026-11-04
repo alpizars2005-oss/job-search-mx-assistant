@@ -90,7 +90,10 @@ enteros. Hay topes adicionales de configuración (1000 solicitudes, 10 reintento
 
 - Hosts y rutas API exactos construidos localmente, solo HTTPS, sin userinfo,
   puertos explícitos, fragmentos, controles, backslashes o parámetros arbitrarios.
-  No se consume una URL `next`, `applyUrl`, enlace HTML o recurso de la respuesta.
+  Una consulta vacía se trata explícitamente como ausencia de parámetros para
+  conservar compatibilidad con Python 3.10; consultas no vacías mantienen parsing
+  estricto y listas permitidas. No se consume una URL `next`, `applyUrl`, enlace
+  HTML o recurso de la respuesta.
 - Todas las redirecciones se rechazan, incluso entre hosts conocidos. Un cambio
   legítimo de endpoint requiere revisar/adaptar el contrato, no ampliar la red.
 - Las URLs de ofertas se validan contra hosts de páginas del ATS, tablero e ID;
@@ -192,8 +195,8 @@ python -m jobsearch_assistant discover
 python -m jobsearch_assistant discover --config examples/sources.example.json
 ```
 
-En este Cloud con Python 3.12.14, tras corregir la modalidad Ashby: **73 pruebas unittest**
-y **73 pruebas pytest + 205 subtests**, aprobadas. CSV se convirtió a TestCase,
+En este Cloud con Python 3.12.14, tras corregir la modalidad Ashby y validar Python 3.10: **74 pruebas unittest**
+y **74 pruebas pytest + 210 subtests**, aprobadas. CSV se convirtió a TestCase,
 por lo que las dos pruebas previas ya se ejecutan en la matriz CI existente,
 sin añadir pytest como requisito de CI o una dependencia nueva de runtime.
 Los casos cubren todos los escenarios obligatorios: válido/incompleto/vacío,
