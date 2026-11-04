@@ -217,3 +217,46 @@ class AdapterTests(unittest.TestCase):
         row = dict(ASHBY, descriptionHtml='<p>Fallback</p>')
         del row['descriptionPlain']
         self.assertEqual(self.discover('ashby', {'jobs': [row]}).jobs[0].description, 'Fallback')
+
+    def test_truncated_chunked_http_is_contained_and_other_provider_continues(self):
+        import io
+        from http.client import HTTPResponse
+        from unittest.mock import patch
+        from jobsearch_assistant.sources.http import UrllibTransport
+
+        class Socket:
+            def makefile(self, *_):
+                return io.BytesIO(b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n'
+                                  b'Transfer-Encoding: chunked\r\n\r\n20\r\nprivate-value')
+        truncated = HTTPResponse(Socket())
+        truncated.begin()
+
+        class GoodResponse(io.BytesIO):
+            status = 200
+            headers = {'Content-Type': 'application/json'}
+        import json
+        good = GoodResponse(json.dumps({'jobs': [ASHBY]}).encode())
+        transport = UrllibTransport()
+        client = SafeHttpClient(RequestPolicy(max_retries=0, min_interval=0), transport=transport)
+        with patch.object(transport.opener, 'open', side_effect=[truncated, good]):
+            result = DiscoveryEngine(client, now=lambda: NOW).run(
+                [self.config('greenhouse'), self.config('ashby')])
+        self.assertEqual([r.status for r in result.reports], ['error', 'ok'])
+        self.assertEqual(result.reports[0].issues, ['network_error'])
+        self.assertEqual([r.requests for r in result.reports], [1, 1])
+        self.assertEqual(len(result.jobs), 1)
+        self.assertNotIn('private-value', str(result.to_dict()))
+        self.assertTrue(truncated.isclosed())
+        self.assertTrue(good.closed)
+
+    def test_absent_paths_are_explicitly_missing_in_field_provenance(self):
+        job = self.discover('greenhouse', {'jobs': [{'id': 1}]}).jobs[0]
+        for field, path in [('title', 'title'), ('description', 'content'),
+                            ('locations', 'location.name'), ('published_at', 'first_published')]:
+            self.assertEqual(job.provenance[field], ['missing:' + path])
+        job = self.discover('ashby', {'jobs': [{'jobUrl': 'https://jobs.ashbyhq.com/example/one'}]}).jobs[0]
+        self.assertEqual(job.provenance['work_mode'], ['missing:workplaceType', 'missing:isRemote'])
+        self.assertEqual(job.eligibility_evidence['provenance']['work_mode'],
+                         job.provenance['work_mode'])
+        job = self.discover('greenhouse', {'jobs': [dict(GH, title=None)]}).jobs[0]
+        self.assertIn('#jobs[0].title', job.provenance['title'][0])  # Present null is observed.

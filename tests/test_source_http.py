@@ -212,3 +212,9 @@ class HttpTests(unittest.TestCase):
             result = transport(URL, 3, 100)
         self.assertEqual(len(result.body), 101)
         self.assertTrue(body.closed)
+
+    def test_other_http_protocol_errors_use_limited_network_retries(self):
+        from http.client import BadStatusLine
+        client = self.client([BadStatusLine('private-value'), response()], min_interval=0)
+        self.assertEqual(client.get_json('greenhouse', URL), {})
+        self.assertEqual(len(self.transport.calls), 2)

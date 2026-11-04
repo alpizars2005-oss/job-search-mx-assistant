@@ -37,29 +37,32 @@ Los límites son locales del cliente, no promesas de cuotas oficiales. La docume
 **Files:** crear `src/jobsearch_assistant/sources/{__init__,models,http}.py`, `tests/test_source_http.py`; convertir `tests/test_exporters.py` a unittest y nombrar explícitamente su cobertura en CI.
 **Interfaces:** `SourceConfig(provider, board, company, enabled=False)`, `RequestPolicy`, `HttpResponse`, `SafeHttpClient.get_json(provider, url, validator)`; transporte callable `(url, timeout, max_bytes) -> HttpResponse`. `SourceError.code` no revela contenido externo.
 
-- [ ] Escribir pruebas de URL/host/path, respuestas JSON/HTML/tamaño, redirects, timeout/429/5xx, Retry-After numérico/fecha, jitter, cuotas compartidas, espera y breaker/cooldown.
-- [ ] Ejecutar `.venv/bin/python -m pytest tests/test_source_http.py -q`: esperar fallo por módulo ausente.
-- [ ] Implementar contratos y transporte GET con dependencias de reloj/espera/aleatoriedad inyectables; nunca desactivar proxy o TLS.
-- [ ] Ejecutar pruebas enfocadas y suite completa: esperar éxito; commit `feat: add bounded read-only source transport`.
+- [x] Escribir pruebas de URL/host/path, respuestas JSON/HTML/tamaño, redirects, timeout/429/5xx, Retry-After numérico/fecha, jitter, cuotas compartidas, espera y breaker/cooldown.
+- [x] Ejecutar `.venv/bin/python -m pytest tests/test_source_http.py -q`: esperar fallo por módulo ausente.
+- [x] Implementar contratos y transporte GET con dependencias de reloj/espera/aleatoriedad inyectables; nunca desactivar proxy o TLS.
+- [x] Ejecutar pruebas enfocadas y suite completa: esperar éxito; commit `feat: add bounded read-only source transport`.
 
 ## Task 2: Adaptadores, normalización y deduplicación
 
 **Files:** crear `sources/{adapters,discovery}.py`, `tests/test_job_sources.py`.
 **Interfaces:** `NormalizedJob` contiene campos requeridos, tablero/procedencia y evidencia sin interpretar. `DiscoveryEngine.run(configs) -> DiscoveryResult`, con jobs y reportes por tablero. Identidad `(source, source_board, source_job_id)`.
 
-- [ ] Escribir fixtures sintéticas para cada ATS: válido/incompleto/vacío/shape inválido, URLs maliciosas, ubicaciones/fechas desconocidas, evidencia/procedencia, páginas repetidas y límite de paginación.
-- [ ] Ejecutar `.venv/bin/python -m pytest tests/test_job_sources.py -q`: esperar fallo por API ausente.
-- [ ] Implementar endpoints construidos localmente y validación de URLs de ofertas sin seguirlas; Greenhouse/Ashby una respuesta, Lever skip/limit acotados.
-- [ ] Probar independencia de proveedores y cuota compartida entre tableros; no emitir IDs artificiales cuando falta identidad estable.
-- [ ] Ejecutar pruebas enfocadas y suite completa: esperar éxito; commit `feat: discover and normalize public ATS postings`.
+- [x] Escribir fixtures sintéticas para cada ATS: válido/incompleto/vacío/shape inválido, URLs maliciosas, ubicaciones/fechas desconocidas, evidencia/procedencia, páginas repetidas y límite de paginación.
+- [x] Ejecutar `.venv/bin/python -m pytest tests/test_job_sources.py -q`: esperar fallo por API ausente.
+- [x] Implementar endpoints construidos localmente y validación de URLs de ofertas sin seguirlas; Greenhouse/Ashby una respuesta, Lever skip/limit acotados.
+- [x] Probar independencia de proveedores y cuota compartida entre tableros; no emitir IDs artificiales cuando falta identidad estable.
+- [x] Ejecutar pruebas enfocadas y suite completa: esperar éxito; commit `feat: discover and normalize public ATS postings`.
 
 ## Task 3: Configuración, CLI y documentación
 
 **Files:** crear `sources/config.py`, `tests/test_discovery_cli.py`, `examples/sources.example.json`, `docs/JOB_SOURCES.md`; modificar CLI, PLAN, README, arquitectura, SECURITY y CHANGELOG donde corresponda.
 **Interfaces:** `load_source_config(path) -> (list[SourceConfig], RequestPolicy)` con límites de tamaño/estructura y rechazo de campos desconocidos. `jobsearch discover [--config PATH] [--language es|en]`: JSON en stdout; 0 completo/deshabilitado, 1 parcial/error, 2 configuración inválida.
 
-- [ ] Escribir pruebas de defaults sin red, flags/tipos maliciosos, errores redactados/bilingües, serialización y compatibilidad con comandos previos.
-- [ ] Ejecutar prueba enfocada: esperar fallo por comando/módulo ausente; implementar integración mínima sin SQLite.
-- [ ] Documentar fuentes diferidas, condiciones oficiales y límites; intentar lecturas reales solo por red permitida y registrar resultados honestos.
-- [ ] Ejecutar suite, compilación, pip check, ayuda, configuración deshabilitada y smoke Linux; revisar diff y commits atómicos.
-- [ ] Revisión independiente de rama, correcciones con regresiones si procede, PR a main y detenerse antes de Fase 3.
+- [x] Escribir pruebas de defaults sin red, flags/tipos maliciosos, errores redactados/bilingües, serialización y compatibilidad con comandos previos.
+- [x] Ejecutar prueba enfocada: esperar fallo por comando/módulo ausente; implementar integración mínima sin SQLite.
+- [x] Documentar fuentes diferidas, condiciones oficiales y límites; intentar lecturas reales solo por red permitida y registrar resultados honestos.
+- [x] Ejecutar suite, compilación, pip check, ayuda, configuración deshabilitada y smoke Linux; revisar diff y commits atómicos.
+- [x] Revisión independiente de rama y correcciones verificadas con regresiones.
+
+Cierre operativo: abrir PR a main, registrar hashes/resultados y detenerse antes
+de Fase 3; la descripción del PR conserva la evidencia de publicación.

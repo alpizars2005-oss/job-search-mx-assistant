@@ -66,8 +66,8 @@ class RequestPolicy:
                      'pause_seconds', 'min_interval'):
             value = getattr(self, name)
             minimum = 0 if name in ('max_wait', 'min_interval') else 0.001
-            if (type(value) not in (int, float) or not math.isfinite(value)
-                    or not minimum <= value <= 3600):
+            if (type(value) not in (int, float) or not minimum <= value <= 3600
+                    or not math.isfinite(value)):
                 raise ValueError(f'invalid {name}')
 
 

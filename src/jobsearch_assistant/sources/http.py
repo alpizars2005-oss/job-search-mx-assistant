@@ -7,6 +7,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
+from http.client import HTTPException
 from typing import Callable, TypeVar
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, urlsplit
@@ -199,7 +200,7 @@ class SafeHttpClient:
                 response = self.transport(url, self.policy.timeout, self.policy.max_response_bytes)
                 headers = {key.lower(): value for key, value in response.headers.items()}
                 status = response.status
-            except (URLError, OSError, TimeoutError):
+            except (URLError, OSError, TimeoutError, HTTPException):
                 status = 0
             if status == 200:
                 try:

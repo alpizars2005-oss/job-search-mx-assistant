@@ -148,7 +148,8 @@ legal, respuesta del empleador o elegibilidad. `incomplete` indica ausencia de
 título, descripción, ubicación o URL. Ashby `isListed=false` se omite. Un registro
 sin identidad estable o con tipos/URL inválidos se rechaza. `provenance` asocia
 campos a URL de consulta + ruta JSON, configuración o regla de transformación;
-no afirma que un valor faltante estuviera presente en la respuesta.
+marca las rutas ausentes como `missing:campo`, distinguiéndolas de campos
+presentes con valor `null`. No atribuye datos ausentes a rutas observadas.
 
 La identidad de deduplicación es `(source, source_board, source_job_id)`.
 La primera aparición válida gana, manteniendo orden de configuración/paginación.
@@ -172,7 +173,9 @@ antibot. Los enlaces manuales existentes no se transformaron en recolectores.
 
 ## Pruebas y comprobación real en Cloud
 
-La suite utiliza cuerpos/transportes/relojes sintéticos sin servicios externos:
+La suite utiliza cuerpos/transportes/relojes sintéticos sin servicios externos.
+La revisión final agregó regresiones para respuestas chunked truncadas/errores
+de protocolo, límites numéricos excesivos y procedencia de campos ausentes:
 
 ```bash
 python -m unittest discover -s tests -v
@@ -183,8 +186,8 @@ python -m jobsearch_assistant discover
 python -m jobsearch_assistant discover --config examples/sources.example.json
 ```
 
-En este Cloud con Python 3.12.14, tras implementar CLI: **64 pruebas unittest**
-y **64 pruebas pytest + 182 subtests**, aprobadas. CSV se convirtió a TestCase,
+En este Cloud con Python 3.12.14, tras implementar CLI: **68 pruebas unittest**
+y **68 pruebas pytest + 182 subtests**, aprobadas. CSV se convirtió a TestCase,
 por lo que las dos pruebas previas ya se ejecutan en la matriz CI existente,
 sin añadir pytest como requisito de CI o una dependencia nueva de runtime.
 Los casos cubren todos los escenarios obligatorios: válido/incompleto/vacío,

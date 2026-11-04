@@ -117,3 +117,10 @@ class DiscoveryCliTests(unittest.TestCase):
         code, _, _ = self.invoke('init', '--language', 'en')
         self.assertEqual(code, 0)
         self.assertTrue((self.root / 'private' / 'applications.sqlite3').is_file())
+
+    def test_excessive_numeric_settings_return_redacted_config_error(self):
+        self.config(limits={'timeout': 10 ** 400})
+        code, output, error = self.invoke('discover', '--config', str(self.path))
+        self.assertEqual(code, 2)
+        self.assertEqual(output, '')
+        self.assertEqual(error.strip(), 'Configuración de fuentes inválida')
