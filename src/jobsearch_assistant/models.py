@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Any
@@ -42,6 +44,13 @@ class CandidateProfile:
     )
     skill_aliases: dict[str, list[str]] = field(default_factory=dict)
 
+    residence_country: str | None = None
+    work_authorized_countries: list[str] | None = None
+    experience_years: float | None = None
+    degree_completed: bool | None = None
+    language_levels: dict[str, str] = field(default_factory=dict)
+    conditions: dict[str, bool | None] = field(default_factory=dict)
+
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
@@ -77,6 +86,35 @@ class CandidateProfile:
             ):
                 raise ValueError("skill_aliases must map strings to arrays of strings")
 
+        def country(value):
+            return isinstance(value, str) and len(value) == 2 and value.isascii() and value.isalpha() and value.isupper()
+
+        if data.get("residence_country") is not None and not country(data["residence_country"]):
+            raise ValueError("residence_country must be an uppercase country code or null")
+        countries = data.get("work_authorized_countries")
+        if countries is not None and (not isinstance(countries, list) or not all(country(c) for c in countries)):
+            raise ValueError("work_authorized_countries must be an array of country codes or null")
+        years = data.get("experience_years")
+        if years is not None and (type(years) not in (int, float) or not 0 <= years <= 100 or not math.isfinite(years)):
+            raise ValueError("experience_years must be a finite nonnegative number or null")
+        if data.get("degree_completed") is not None and type(data["degree_completed"]) is not bool:
+            raise ValueError("degree_completed must be a boolean or null")
+        if "language_levels" in data:
+            levels = data["language_levels"]
+            accepted = {"A1", "A2", "B1", "B2", "C1", "C2", "native", "basic", "intermediate", "advanced", "fluent"}
+            if not isinstance(levels, dict) or not all(
+                isinstance(k, str) and bool(k.strip()) and isinstance(v, str) and v in accepted
+                for k, v in levels.items()
+            ):
+                raise ValueError("language_levels must map languages to supported proficiency levels")
+        if "conditions" in data:
+            conditions = data["conditions"]
+            if not isinstance(conditions, dict) or not all(
+                isinstance(k, str) and bool(k.strip()) and (v is None or type(v) is bool)
+                for k, v in conditions.items()
+            ):
+                raise ValueError("conditions must map condition names to booleans or null")
+
         allowed = set(cls.__dataclass_fields__)
         return cls(**{key: value for key, value in data.items() if key in allowed})
 
@@ -100,6 +138,14 @@ class EvaluationResult:
     positive_signals: list[str] = field(default_factory=list)
     risks: list[str] = field(default_factory=list)
     reasons: list[str] = field(default_factory=list)
+    algorithm_version: str = "legacy_v1"
+    requirements: list[dict[str, Any]] = field(default_factory=list)
+    requirements_met: list[str] = field(default_factory=list)
+    missing_requirements: list[str] = field(default_factory=list)
+    restrictions: list[str] = field(default_factory=list)
+    unknowns: list[str] = field(default_factory=list)
+    evidence: list[dict[str, Any]] = field(default_factory=list)
+    suggestions: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
