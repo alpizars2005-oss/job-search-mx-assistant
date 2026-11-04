@@ -241,4 +241,3 @@ class GuiHeadlessTests(unittest.TestCase):
                 self.assertEqual(app.current_result.recommendation, "ineligible")
                 report = app.result_text.insert.call_args.args[1]
                 self.assertIn("matching_v2", report)
-

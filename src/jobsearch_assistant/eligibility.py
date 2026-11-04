@@ -130,7 +130,7 @@ def _combined(positive, negative, fallback='unknown'):
 
 def _mexico(segments):
     positive, negative, hints = [], [], []
-    country = r'(?:us|u\.s\.?|united states|estados unidos|ee\.?\s?uu\.?|canada|uk|united kingdom|reino unido|europe|europa|germany|alemania|spain|espana)' 
+    country = r'(?:us|u\.s\.?|united states|estados unidos|ee\.?\s?uu\.?|canada|uk|united kingdom|reino unido|europe|europa|germany|alemania|spain|espana)'
     us_only = re.compile(
         rf'\b(?:{country})\s+(?:(?:residents?|citizens?|applicants?|candidates?)\s+)?only\b|'
         rf'\b(?:only|restricted to|limited to|exclusively)\s+(?:(?:residents?|citizens?)\s+(?:of|in)\s+)?(?:the\s+)?{country}\b|'
