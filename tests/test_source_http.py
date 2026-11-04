@@ -27,7 +27,7 @@ class Clock:
 
 def response(status=200, payload=None, headers=None, body=None):
     return HttpResponse(status, headers or {'Content-Type': 'application/json'},
-                        body if body is not None else json.dumps(payload or {}).encode())
+                        body if body is not None else json.dumps({} if payload is None else payload).encode())
 
 
 class QueueTransport:

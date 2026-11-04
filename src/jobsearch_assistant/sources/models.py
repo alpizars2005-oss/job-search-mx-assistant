@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 import re
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Mapping
 
 PROVIDERS = ('greenhouse', 'lever', 'ashby')
@@ -12,8 +12,9 @@ BOARD_PATTERN = re.compile(r'[A-Za-z0-9][A-Za-z0-9_-]{0,99}\Z')
 class SourceError(Exception):
     """A stable diagnostic code; never includes remote bodies, URLs or exceptions."""
 
-    def __init__(self, code: str):
+    def __init__(self, code: str, *, rejected: int = 0):
         self.code = code
+        self.rejected = rejected
         super().__init__(code)
 
 
@@ -75,3 +76,41 @@ class HttpResponse:
     status: int
     headers: Mapping[str, str]
     body: bytes
+
+
+@dataclass(frozen=True)
+class NormalizedJob:
+    source: str
+    source_board: str
+    source_job_id: str
+    company: str
+    title: str | None
+    locations: list[str]
+    work_mode: str
+    url: str | None
+    description: str | None
+    published_at: str | None
+    retrieved_at: str
+    verification_status: str
+    eligibility_evidence: dict
+    provenance: dict[str, list[str]]
+
+
+@dataclass
+class SourceReport:
+    source: str
+    board: str
+    status: str = 'disabled'
+    requests: int = 0
+    rejected: int = 0
+    duplicates: int = 0
+    issues: list[str] = field(default_factory=list)
+
+
+@dataclass
+class DiscoveryResult:
+    jobs: list[NormalizedJob]
+    reports: list[SourceReport]
+
+    def to_dict(self) -> dict:
+        return asdict(self)
