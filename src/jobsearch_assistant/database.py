@@ -1,16 +1,36 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .models import ApplicationRecord, EvaluationResult, JobPosting, VALID_STATUSES
+from .migrations import SCHEMA_VERSION, initialize_database, legacy_identity
+from .models import (
+    VALID_STATUSES,
+    ApplicationRecord,
+    CandidateProfile,
+    EvaluationResult,
+    JobPosting,
+)
+from .sources.models import NormalizedJob
 
-SCHEMA_VERSION = 1
+__all__ = ['SCHEMA_VERSION', 'ApplicationDatabase']
+
+
+def _canonical_json(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'),
+                      allow_nan=False)
+
+
+def _fingerprint(value: Any) -> str:
+    return hashlib.sha256(_canonical_json(value).encode('utf-8')).hexdigest()
+
 
 
 class ApplicationDatabase:
@@ -20,10 +40,9 @@ class ApplicationDatabase:
         self.initialize()
 
     def connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.path)
+        connection = sqlite3.connect(self.path, timeout=30)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys = ON")
-        connection.execute("PRAGMA journal_mode = WAL")
         return connection
 
     @contextmanager
@@ -37,47 +56,111 @@ class ApplicationDatabase:
             connection.close()
 
     def initialize(self) -> None:
+        initialize_database(self.path)
+
+    def upsert_vacancy(self, job: NormalizedJob) -> int:
+        """Update source evidence atomically, retaining the stable vacancy ID."""
+        payload = _canonical_json(asdict(job))
         with self._connection() as connection:
-            connection.executescript(
-                """
-                CREATE TABLE IF NOT EXISTS meta (
-                    key TEXT PRIMARY KEY,
-                    value TEXT NOT NULL
-                );
+            connection.execute('BEGIN IMMEDIATE')
+            connection.execute('''
+                INSERT INTO vacancies(source, source_board, source_job_id, job_json)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(source, source_board, source_job_id)
+                DO UPDATE SET job_json=excluded.job_json
+            ''', (job.source, job.source_board, job.source_job_id, payload))
+            row = connection.execute('''
+                SELECT id FROM vacancies WHERE source=? AND source_board=? AND source_job_id=?
+            ''', (job.source, job.source_board, job.source_job_id)).fetchone()
+            return int(row[0])
 
-                CREATE TABLE IF NOT EXISTS applications (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    title TEXT NOT NULL,
-                    company TEXT NOT NULL,
-                    location TEXT NOT NULL DEFAULT '',
-                    url TEXT NOT NULL DEFAULT '',
-                    description TEXT NOT NULL DEFAULT '',
-                    score INTEGER NOT NULL,
-                    recommendation TEXT NOT NULL,
-                    evaluation_json TEXT NOT NULL,
-                    status TEXT NOT NULL DEFAULT 'saved',
-                    notes TEXT NOT NULL DEFAULT '',
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
-                );
+    def get_vacancy(self, vacancy_id: int) -> NormalizedJob | None:
+        with self._connection() as connection:
+            row = connection.execute('SELECT job_json FROM vacancies WHERE id=?',
+                                     (vacancy_id,)).fetchone()
+        return NormalizedJob(**json.loads(row[0])) if row else None
 
-                CREATE INDEX IF NOT EXISTS idx_applications_status
-                ON applications(status);
+    def list_vacancies(self) -> list[dict[str, Any]]:
+        with self._connection() as connection:
+            rows = connection.execute('SELECT id, job_json FROM vacancies ORDER BY id').fetchall()
+        return [{'id': int(row['id']), 'job': json.loads(row['job_json'])} for row in rows]
 
-                CREATE INDEX IF NOT EXISTS idx_applications_company_title
-                ON applications(company, title);
-                """
-            )
-            connection.execute(
-                "INSERT OR REPLACE INTO meta(key, value) VALUES('schema_version', ?)",
-                (str(SCHEMA_VERSION),),
-            )
+    def save_evaluation(
+        self, vacancy_id: int, profile: CandidateProfile, result: EvaluationResult,
+        *, job: NormalizedJob | None = None,
+    ) -> int:
+        """Append an immutable evaluation, or return an identical saved result.
+
+        Pass the exact evaluated job to preserve its snapshot if another writer
+        refreshes the vacancy meanwhile. Without it, the caller must have
+        evaluated the vacancy currently stored. Hashes cover the entire job and
+        profile, including evidence and retrieval time, with canonical JSON.
+        Divergent results for the same inputs/version are rejected explicitly.
+        """
+        profile_data = profile.to_dict()
+        profile_json = _canonical_json(profile_data)
+        result_json = _canonical_json(result.to_dict())
+        with self._connection() as connection:
+            connection.execute('BEGIN IMMEDIATE')
+            vacancy = connection.execute('SELECT * FROM vacancies WHERE id=?',
+                                         (vacancy_id,)).fetchone()
+            if vacancy is None:
+                raise ValueError('Unknown vacancy')
+            if job is not None:
+                if (job.source, job.source_board, job.source_job_id) != (
+                    vacancy['source'], vacancy['source_board'], vacancy['source_job_id']
+                ):
+                    raise ValueError('Evaluated job does not match vacancy identity')
+                job_data = asdict(job)
+            else:
+                job_data = json.loads(vacancy['job_json'])
+            job_json = _canonical_json(job_data)
+            input_fingerprint = _fingerprint({'job': job_data, 'profile': profile_data})
+            existing = connection.execute('''
+                SELECT id, evaluation_json FROM evaluations
+                WHERE vacancy_id=? AND algorithm_version=? AND input_fingerprint=?
+            ''', (vacancy_id, result.algorithm_version, input_fingerprint)).fetchone()
+            if existing:
+                if existing['evaluation_json'] != result_json:
+                    raise ValueError('Conflicting evaluation for the same inputs and algorithm version')
+                return int(existing['id'])
+            cursor = connection.execute('''
+                INSERT INTO evaluations(
+                    vacancy_id, algorithm_version, profile_fingerprint, input_fingerprint,
+                    job_snapshot_json, profile_snapshot_json, evaluation_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (vacancy_id, result.algorithm_version, _fingerprint(profile_data),
+                  input_fingerprint, job_json, profile_json, result_json))
+            return int(cursor.lastrowid)
+
+    def list_evaluations(self, vacancy_id: int) -> list[dict[str, Any]]:
+        with self._connection() as connection:
+            rows = connection.execute('''
+                SELECT * FROM evaluations WHERE vacancy_id=? ORDER BY id
+            ''', (vacancy_id,)).fetchall()
+        return [{
+            'id': int(row['id']), 'vacancy_id': int(row['vacancy_id']),
+            'algorithm_version': row['algorithm_version'],
+            'profile_fingerprint': row['profile_fingerprint'],
+            'input_fingerprint': row['input_fingerprint'],
+            'job_snapshot': json.loads(row['job_snapshot_json']),
+            'profile_snapshot': json.loads(row['profile_snapshot_json']),
+            'evaluation': json.loads(row['evaluation_json']),
+        } for row in rows]
 
     def add(self, record: ApplicationRecord) -> int:
         if record.status not in VALID_STATUSES:
             raise ValueError(f"Invalid status: {record.status}")
         payload = json.dumps(record.evaluation.to_dict(), ensure_ascii=False)
+        identity = legacy_identity(record.job.url, record.job.company, record.job.title)
         with self._connection() as connection:
+            connection.execute('BEGIN IMMEDIATE')
+            existing = connection.execute(
+                'SELECT application_id FROM application_identities WHERE identity=?',
+                (identity,),
+            ).fetchone()
+            if existing:
+                return int(existing[0])
             cursor = connection.execute(
                 """
                 INSERT INTO applications(
@@ -101,7 +184,12 @@ class ApplicationDatabase:
                     record.updated_at,
                 ),
             )
-            return int(cursor.lastrowid)
+            record_id = int(cursor.lastrowid)
+            connection.execute(
+                'INSERT INTO application_identities(identity, application_id) VALUES (?, ?)',
+                (identity, record_id),
+            )
+            return record_id
 
     def list(self, status: str | None = None) -> list[ApplicationRecord]:
         query = "SELECT * FROM applications"
@@ -144,23 +232,11 @@ class ApplicationDatabase:
 
     def find_duplicate(self, job: JobPosting) -> int | None:
         with self._connection() as connection:
-            if job.url.strip():
-                row = connection.execute(
-                    "SELECT id FROM applications WHERE lower(trim(url)) = lower(trim(?)) LIMIT 1",
-                    (job.url,),
-                ).fetchone()
-                if row:
-                    return int(row["id"])
             row = connection.execute(
-                """
-                SELECT id FROM applications
-                WHERE lower(trim(company)) = lower(trim(?))
-                  AND lower(trim(title)) = lower(trim(?))
-                LIMIT 1
-                """,
-                (job.company, job.title),
+                'SELECT application_id FROM application_identities WHERE identity=?',
+                (legacy_identity(job.url, job.company, job.title),),
             ).fetchone()
-            return int(row["id"]) if row else None
+            return int(row[0]) if row else None
 
     def summary(self) -> dict[str, int]:
         result = {status: 0 for status in VALID_STATUSES}
