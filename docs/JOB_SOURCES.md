@@ -1,5 +1,10 @@
 # Descubrimiento de vacantes públicas — Fase 2
 
+**Continuidad en Fase 3:** la descripción siguiente conserva la evidencia de
+entrega de Fase 2. El comando sin opciones nuevas mantiene ese contrato;
+`discover --save` ahora permite persistir y evaluar de forma explícita. Ver
+[SQLite y matching](SQLITE_MATCHING.md), sin cambios a límites/red de lectores.
+
 La Fase 2 agrega lectores GET de Greenhouse, Lever y Ashby, normalización,
 procedencia y deduplicación en memoria. No utiliza perfiles, puntuaciones,
 SQLite, navegador, credenciales o mecanismos de envío. La GUI, tracker y

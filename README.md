@@ -159,13 +159,27 @@ Greenhouse, Lever and Ashby readers are disabled by default, including in the
 example. Copy the source config outside the repository, review the board's terms,
 and explicitly enable the boards you want to query. Discovery returns JSON with
 field provenance, unknown eligibility and per-board partial/error reports. It
-does not load profiles, write SQLite or submit applications. See the
+does not load profiles or write SQLite unless `--save` is requested, and never
+submits applications. See the
 [configuration and safety guide (Spanish)](docs/JOB_SOURCES.md). Existing profiles
 remain JSON, and the desktop workflow is unchanged.
 
+## Persistencia y matching explicable — Fase 3
+
+`jobsearch discover --config /ruta/externa/sources.json --save` guarda las vacantes
+normalizadas y evaluaciones versionadas. `jobsearch vacancies list` y
+`jobsearch vacancies evaluate 1 --json` trabajan con los datos locales sin red.
+SQLite migra de esquema 1 a 2 con backup previo y conserva todos los históricos.
+Consulta [operación, perfil y rollback](docs/SQLITE_MATCHING.md).
+
 ## Fit score
 
-The evaluator combines:
+New evaluations check eligibility before compatibility and return one of the six
+classifications documented in [AGENTS.md](AGENTS.md). Unknown essential facts
+produce `insufficient_information`; a confirmed exclusion produces `ineligible`
+regardless of the score. Remote work or a Mexico location alone does not confirm
+that the employer can hire someone based in Mexico. Historical results keep their
+original algorithm and labels. Known compatibility signals include:
 
 1. Candidate skill matches.
 2. Target-role signals.

@@ -23,40 +23,40 @@ Se implementarán SQLite y matching como tareas independientes con archivos de e
 
 ### 1. Contratos compatibles (agente principal)
 
-- [ ] Probar primero campos opcionales/tipos, defaults desconocidos y lectura de evaluación histórica.
-- [ ] Ampliar `models.py`, preservando JSON existente y tolerancia a campos futuros.
-- [ ] Ejecutar suite; commit `feat: extend matching contracts without inventing candidate facts`.
+- [x] Probar primero campos opcionales/tipos, defaults desconocidos y lectura de evaluación histórica.
+- [x] Ampliar `models.py`, preservando JSON existente y tolerancia a campos futuros.
+- [x] Ejecutar suite; commit `feat: extend matching contracts without inventing candidate facts`.
 
 ### 2. SQLite y migración segura (tarea independiente)
 
 Archivos: `database.py`, nuevo `migrations.py`, pruebas `test_migrations.py`, `test_persistence.py`. Consumir modelos sin modificarlos.
 
-- [ ] Crear esquema 2 con migración desde 1 en transacción explícita, backup previo y rechazo de versiones desconocidas antes de cambios. No usar executescript que confirme parcialmente una migración.
-- [ ] Preservar todos los registros, IDs, timestamps, notas, estados y JSON de evaluación, incluidos duplicados anteriores.
-- [ ] Unicidad por proveedor/tablero/ID; deduplicación persistente y dos escritores independientes. No convertir rutas URL sensibles a mayúsculas en minúsculas.
-- [ ] Guardar evidencia/snapshots versionados y probar persistencia tras reinicio.
-- [ ] Probar fallo y salida abrupta durante migración, recuperación, backup con WAL y restauración en destino nuevo. No destruir o reemplazar archivos existentes.
-- [ ] Verificar focused tests y entregar cambios sin commit; commit del principal `feat: migrate SQLite safely and persist source evidence`.
+- [x] Crear esquema 2 con migración desde 1 en transacción explícita, backup previo y rechazo de versiones desconocidas antes de cambios. No usar executescript que confirme parcialmente una migración.
+- [x] Preservar todos los registros, IDs, timestamps, notas, estados y JSON de evaluación, incluidos duplicados anteriores.
+- [x] Unicidad por proveedor/tablero/ID; deduplicación persistente y dos escritores independientes. No convertir rutas URL sensibles a mayúsculas en minúsculas.
+- [x] Guardar evidencia/snapshots versionados y probar persistencia tras reinicio.
+- [x] Probar fallo y salida abrupta durante migración, recuperación, backup con WAL y restauración en destino nuevo. No destruir o reemplazar archivos existentes.
+- [x] Verificar focused tests y entregar cambios sin commit; commit del principal `feat: migrate SQLite safely and persist source evidence`.
 
 ### 3. Elegibilidad y matching (tarea independiente)
 
 Archivos: nuevos `eligibility.py`, `matching.py`; pruebas `test_eligibility.py`, `test_matching.py`. Consumir modelos sin modificarlos; el principal adapta el evaluador histórico.
 
-- [ ] Requisitos geográficos, remoto, experiencia, título, seniority, idiomas y condiciones adicionales antes de scoring; estados met/unmet/unknown/contradictory/not_required, evidencia y motivos.
-- [ ] No inferir autorización México de ubicaciones o Remote/Global/Americas/LATAM. Negaciones y restricciones explícitas reconocidas con reglas acotadas; texto ambiguo conserva desconocido, sin obedecer instrucciones externas.
-- [ ] Seis clasificaciones y prioridades 80/65/50; exclusiones confirmadas preceden al score. Información esencial desconocida -> insufficient_information. Puntuar solo señales conocidas; salario no publicado no implica incumplimiento.
-- [ ] Explicaciones y puntos deterministas; no usar fecha actual o servicios externos. Mantener señales útiles de skill/remote/riesgo para las interfaces existentes.
-- [ ] Probar casos adversariales bilingües, contradicciones, título con alternativas, experiencia obligatoria frente a deseable, idiomas y datos desconocidos.
-- [ ] Verificar focused tests; commit del principal `feat: evaluate eligibility before explainable matching`.
+- [x] Requisitos geográficos, remoto, experiencia, título, seniority, idiomas y condiciones adicionales antes de scoring; estados met/unmet/unknown/contradictory/not_required, evidencia y motivos.
+- [x] No inferir autorización México de ubicaciones o Remote/Global/Americas/LATAM. Negaciones y restricciones explícitas reconocidas con reglas acotadas; texto ambiguo conserva desconocido, sin obedecer instrucciones externas.
+- [x] Seis clasificaciones y prioridades 80/65/50; exclusiones confirmadas preceden al score. Información esencial desconocida -> insufficient_information. Puntuar solo señales conocidas; salario no publicado no implica incumplimiento.
+- [x] Explicaciones y puntos deterministas; no usar fecha actual o servicios externos. Mantener señales útiles de skill/remote/riesgo para las interfaces existentes.
+- [x] Probar casos adversariales bilingües, contradicciones, título con alternativas, experiencia obligatoria frente a deseable, idiomas y datos desconocidos.
+- [x] Verificar focused tests; commit del principal `feat: evaluate eligibility before explainable matching`.
 
 ### 4. Integración, documentación y verificación (agente principal)
 
-- [ ] Conectar CLI/GUI al algoritmo nuevo; explicaciones bilingües y actualización explícita de la expectativa legacy review_risk a las nuevas categorías, sin ocultar tests.
-- [ ] `discover --save`: opt-in de persistencia; guardar/evaluar datos normalizados. `vacancies list/evaluate` permite consultar/reproducir resultados sin volver a la red. Mantener discover sin escritura por defecto.
-- [ ] Operaciones backup/restore seguras y documentación de rollback a versión anterior sobre copia nueva.
-- [ ] Conservar campos nuevos al editar perfiles desde GUI; regresiones headless, CLI, CSV/JSON y registros históricos.
-- [ ] Documentar migraciones, semántica, límites conservadores, comandos y aceptación; actualizar PLAN/README/SECURITY/CHANGELOG donde corresponda.
-- [ ] Suites completas Python 3.10 y 3.12, pytest, compilación y CI Windows/Ubuntu; correcciones y revisión independiente de toda la rama antes de publicar PR sin merge.
+- [x] Conectar CLI/GUI al algoritmo nuevo; explicaciones bilingües y actualización explícita de la expectativa legacy review_risk a las nuevas categorías, sin ocultar tests.
+- [x] `discover --save`: opt-in de persistencia; guardar/evaluar datos normalizados. `vacancies list/evaluate` permite consultar/reproducir resultados sin volver a la red. Mantener discover sin escritura por defecto.
+- [x] Operaciones backup/restore seguras y documentación de rollback a versión anterior sobre copia nueva.
+- [x] Conservar campos nuevos al editar perfiles desde GUI; regresiones headless, CLI, CSV/JSON y registros históricos.
+- [x] Documentar migraciones, semántica, límites conservadores, comandos y aceptación; actualizar PLAN/README/SECURITY/CHANGELOG donde corresponda.
+- [ ] Confirmar revisión independiente y CI remoto Windows/Ubuntu antes de cerrar la fase. Suites locales Python 3.10/3.12, pytest y compilación completadas; resultados abajo.
 
 ## Foco de revisión
 
@@ -65,3 +65,15 @@ Archivos: nuevos `eligibility.py`, `matching.py`; pruebas `test_eligibility.py`,
 - Los datos desconocidos y la negación de requisitos no deben convertirse en coincidencias positivas.
 - Una oferta normalizada actualizada no debe alterar el snapshot de una evaluación histórica.
 - GUI, exportaciones y perfiles antiguos deben conservar datos y etiquetas al adoptar el nuevo contrato.
+
+## Verificación local antes de revisión independiente
+
+- Python 3.12.14: unittest **147 pruebas**; pytest **147 pruebas + 298 subtests**; pasan.
+- Python 3.10.22: unittest **147 pruebas**; pasan.
+- `pip check`, compilación y `git diff --check`: pasan.
+- Persistencia/migración: **25 pruebas** incluyendo dos procesos y salida abrupta.
+- Regresiones de interfaz: flujo real de adaptadores con transporte sintético, opt-in,
+  perfil GUI preservado, error futuro redactado, JSON de CLI válido y exportación histórica.
+- Detectado/corregido cierre de conexiones en pruebas para liberar archivos también
+  en Windows; no se requiere display para los métodos GUI probados.
+- No se declara validación gráfica interactiva, red ATS o despliegue.

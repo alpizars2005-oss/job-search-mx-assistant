@@ -3,14 +3,25 @@
 Fecha de auditoría de Fase 1: 2026-11-04. Base histórica: `main` en
 `54c7c9ee21fd88625386799782f40da8b6882a5d`.
 
-**Fase actualmente autorizada: Fase 2, motor de descubrimiento.**
-La Fase 1 fue integrada en el PR #6. Base de Fase 2:
-`b69a6fedc3a3e83a794f7d3e1078332c792d983e`.
-Los componentes de Fases 3–6 siguen siendo objetivos sin implementar.
+**Fase actualmente autorizada: Fase 3, SQLite y matching explicable.**
+La Fase 1 fue integrada en el PR #6 y la Fase 2 en el PR #7.
+Base de Fase 3: `5932de7baa9df938d52fcdd6888ed927625bc49a`.
+Las Fases 4–6 siguen pendientes y fuera de esta entrega.
 Cada fase termina en un PR a `main`; no fusionar automáticamente ni comenzar
 una fase dependiente hasta integrar su requisito y obtener autorización de alcance.
 
-## Estado de Fase 2
+## Estado de Fase 3
+
+Contratos compatibles con perfiles JSON anteriores; esquema 2 con migración
+transaccional, backup previo, identidades únicas y evaluaciones con snapshots.
+Elegibilidad previa al scoring, seis clasificaciones y algoritmo `matching_v2`;
+los históricos conservan `legacy_v1` sin reevaluación. CLI/GUI comparten motor;
+`discover --save` conecta los tres ATS a persistencia y evaluación mediante una
+opción explícita. Operación y límites en [SQLITE_MATCHING](docs/SQLITE_MATCHING.md),
+plan y verificación en [plan de Fase 3](docs/superpowers/plans/2026-11-04-sqlite-matching.md).
+La evidencia final de pruebas y CI se registra en el PR de esta fase.
+
+## Estado de Fase 2 (histórico, integrada en PR #7)
 
 Implementados lectores GET de Greenhouse, Lever y Ashby, transporte acotado,
 validación de datos/URLs, normalización con procedencia, deduplicación en memoria,
@@ -108,22 +119,19 @@ postulaciones. No se requiere un servidor HTTP ni puertos de entrada.
 No se encontró un bloqueo fundamental con Debian 12/Python 3.11 y SQLite.
 Esto es compatibilidad estática; no constituye una prueba de instalación en LXC.
 
-## Problemas conocidos y prioridad
+## Hallazgos de auditoría y seguimiento
 
 Prioridades de ingeniería, no puntuaciones de vulnerabilidad:
 
-- **Alta:** `not remote` y una vacante exclusiva de EE. UU. pueden dar `100/100`;
-  falta evaluación excluyente y estado de información insuficiente. Resolver
-  antes de utilizar el score como filtro automático en Fase 3.
-- **Alta:** deduplicación separada del INSERT, sin restricción única; no garantiza
-  idempotencia ante concurrencia. Resolver en Fase 3 antes de automatizar.
-- **Alta:** `initialize()` sobrescribe `schema_version` a 1; no es un motor de
-  migraciones. Corregir antes de evolucionar el esquema en Fase 3.
+- **Resueltos en Fase 3:** precedencia de exclusiones e información insuficiente,
+  unicidad transaccional y validación/migración del marcador de esquema. Las reglas
+  de lenguaje son acotadas; ambigüedades no reconocidas aún requieren revisión.
 - **Media:** pip 25.0.1 del entorno tiene avisos publicados en PyPI; actualizar
   herramientas de instalación antes de incorporar artefactos no confiables. No
   confundirlo con una dependencia de runtime. Detalle y límites en la auditoría.
-- **Media:** CI omite pruebas CSV, y la CLI/GUI no tienen cobertura integral.
-  Incorporar las pruebas existentes de exportación a CI en una entrega futura.
+- **CSV incorporado en Fase 2:** unittest ejecuta sus pruebas en CI. Fase 3 añade
+  regresiones CLI, exportaciones y métodos GUI sin ventana; una sesión gráfica
+  interactiva sigue requiriendo validación manual.
 - **Media:** prompts manuales sin aislamiento explícito frente a instrucciones
   externas; revisión adversarial obligatoria antes de conectarlos a herramientas.
 - **Media:** permisos dependen de umask, escrituras JSON no atómicas y logs de
@@ -147,7 +155,7 @@ con una sola tabla comparativa de los cinco repositorios externos.
 Cierre: commits atómicos y PR a `main`, con hashes y resultados en la descripción
 del PR y el resumen de entrega. Después, detenerse.
 
-### Fase 2 — Fuentes de vacantes (esta entrega)
+### Fase 2 — Fuentes de vacantes (integrada, PR #7)
 
 Requisito satisfecho: Fase 1 integrada y Fase 2 autorizada explícitamente. Evaluar acceso/términos
 de cada fuente, validar identificadores del catálogo y confirmar permisos de red
@@ -178,9 +186,9 @@ reproducible, límites/reintentos/circuit breaker probados, ningún scraping
 prohibido y contenido externo tratado como datos. Conservar pruebas actuales.
 Una consulta real solo se reportará validada si se ejecuta con acceso permitido.
 
-### Fase 3 — SQLite y matching (pendiente)
+### Fase 3 — SQLite y matching (esta entrega)
 
-Requiere Fase 2 integrada. Commits propuestos: pruebas de migración/backup,
+Requisito comprobado: PR #7 integrado y misión de Fase 3 autorizada. Commits: contratos,
 migraciones versionadas y unicidad, persistencia de evidencia, elegibilidad
 excluyente, scoring/configuración y adaptación de CLI/GUI.
 
@@ -254,9 +262,16 @@ contrato. No se necesita un token de Telegram, acceso a PizzaLab o Claude ahora.
 - CLI y documentación de fuentes diferidas; tests sintéticos y CSV incluidos en CI.
 - Commits realizados y resultados finales se registran en el PR de esta fase.
 
-La Fase 3 no comenzó. Requiere integrar esta entrega y una autorización nueva:
+Al cierre histórico de Fase 2, la Fase 3 no había comenzado. Su requisito era:
 conservar los contratos de `NormalizedJob`, añadir persistencia y migraciones
 versionadas, claves únicas transaccionales y elegibilidad explicable. No tratar
 `listed` como prueba de contratación permitida o el score histórico como filtro
 excluyente. Antes de validación real, configurar acceso de red por el mecanismo
 autorizado de Cloud y revalidar los términos de cada tablero.
+
+## Continuación después de Fase 3
+
+Integrar su PR tras revisión y autorizar Fase 4 antes de cambiar código dependiente.
+Reutilizar identidades y snapshots para versiones de CV/borradores; una evaluación
+o estado local jamás autoriza un envío. No hay scheduler, Telegram, integración de
+Claude, despliegue ni cambios en PizzaLab en Fase 3.

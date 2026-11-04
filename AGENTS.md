@@ -96,7 +96,7 @@ residencia exclusiva en EE. UU., título terminado obligatorio sin alternativa
 o experiencia obligatoria claramente incompatible. La ausencia de evidencia
 no prueba que una restricción no exista.
 
-## Contrato del matching futuro
+## Contrato del matching (Fase 3)
 
 Evaluar primero requisitos excluyentes. Un incumplimiento confirmado produce
 `ineligible` independientemente del puntaje. Si faltan datos fundamentales de
@@ -114,8 +114,8 @@ elegibilidad o requisitos, usar `insufficient_information`.
 Cada resultado explicará requisitos cumplidos y faltantes, información pendiente,
 motivos de compatibilidad/exclusión y recomendaciones honestas para mejorar la
 candidatura. No puntuar información desconocida como verificada. Estos estados
-son el contrato objetivo de Fase 3; conservar los estados actuales hasta su
-migración explícita, con pruebas de compatibilidad.
+son el contrato implementado para evaluaciones nuevas `matching_v2`; conservar
+puntajes, etiquetas y JSON históricos `legacy_v1` sin reinterpretación automática.
 
 ## Arquitectura y operación
 

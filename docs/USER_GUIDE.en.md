@@ -9,7 +9,12 @@
 7. Update application status and notes from the Applications tab or CLI.
 8. Export CSV or JSON backups regularly.
 
-Scores use text rules; they do not confirm eligibility or replace reading the posting. Negated wording such as `not remote` can still match the word `remote`. Check the work arrangement, location and mandatory requirements in the original posting before deciding.
+New `matching_v2` evaluations check eligibility before scoring and distinguish
+recognized negations such as `not remote`. Unknown essential facts produce
+`insufficient_information`; skill points do not establish eligibility. The text
+rules are bounded: check work arrangement, hiring from Mexico and mandatory
+requirements in the original posting. Historical results retain their original
+algorithm and labels. See [operation and limits (Spanish)](SQLITE_MATCHING.md).
 
 ## Import a profile
 
