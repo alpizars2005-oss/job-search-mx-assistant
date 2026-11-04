@@ -3,8 +3,12 @@ from __future__ import annotations
 import re
 import unicodedata
 from collections.abc import Iterable
+from typing import TYPE_CHECKING
 
 from .models import CandidateProfile, EvaluationResult, JobPosting
+
+if TYPE_CHECKING:
+    from .sources.models import NormalizedJob
 
 SENIOR_TERMS = ("senior", "sr.", "sr ", "lead", "principal", "manager", "director")
 JUNIOR_TERMS = (
@@ -89,7 +93,8 @@ def _extract_requested_skills(text: str) -> list[str]:
     return matching_phrases(text, COMMON_TECH_SKILLS)
 
 
-def evaluate_job(profile: CandidateProfile, job: JobPosting) -> EvaluationResult:
+def evaluate_job_legacy(profile: CandidateProfile, job: JobPosting) -> EvaluationResult:
+    """Reproduce the historical algorithm; new analyses use evaluate_job."""
     text = " ".join([job.title, job.company, job.location, job.description])
     normalized = normalize(text)
     score = 20
@@ -197,3 +202,10 @@ def evaluate_job(profile: CandidateProfile, job: JobPosting) -> EvaluationResult
         risks=sorted(set(risks)),
         reasons=reasons,
     )
+
+
+def evaluate_job(profile: CandidateProfile, job: JobPosting | NormalizedJob) -> EvaluationResult:
+    """Evaluate new input with versioned eligibility gates before compatibility."""
+    from .matching import evaluate_match
+
+    return evaluate_match(profile, job)
