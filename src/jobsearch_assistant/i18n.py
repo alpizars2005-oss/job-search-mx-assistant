@@ -51,6 +51,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "update_selected": "Update selected",
         "duplicate": "This application is already saved as #{id}.",
         "select_application": "Select an application first.",
+        "update_failed": "The local update failed. Check the allowed status transition.",
     },
     "es": {
         "app_title": "Asistente de Búsqueda de Empleo",
@@ -102,6 +103,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "update_selected": "Actualizar selección",
         "duplicate": "Esta postulación ya está guardada como #{id}.",
         "select_application": "Primero selecciona una postulación.",
+        "update_failed": "Falló la actualización local. Revisa la transición de estado permitida.",
     },
 }
 

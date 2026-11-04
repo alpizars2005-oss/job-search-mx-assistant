@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tkinter as tk
 import webbrowser
+import sqlite3
 from dataclasses import replace
 from tkinter import messagebox, ttk
 
@@ -334,7 +335,11 @@ class JobSearchApp(tk.Tk):
             messagebox.showwarning(self.t("error"), self.t("select_application"))
             return
         notes = self.application_notes.get("1.0", "end").strip()
-        self.database.update(record_id, status=self.selected_status.get(), notes=notes)
+        try:
+            self.database.update(record_id, status=self.selected_status.get(), notes=notes)
+        except (ValueError, OSError, sqlite3.Error):
+            messagebox.showerror(self.t("error"), self.t("update_failed"))
+            return
         self.refresh_dashboard()
         self.refresh_applications()
 
