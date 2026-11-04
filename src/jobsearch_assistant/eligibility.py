@@ -35,7 +35,7 @@ _LEVELS = {'a1': 1, 'basic': 1, 'a2': 2, 'b1': 3, 'intermediate': 3,
            'b2': 4, 'advanced': 5, 'c1': 5, 'fluent': 5, 'c2': 6, 'native': 6}
 # Boundaries separate independent facts while retaining explicit degree alternatives.
 _FACT_SEPARATOR = re.compile(r',(?!(?:\s*)(?:or equivalent|o experiencia equivalente))|;|'
-                             r'\b(?:and|but|y|pero|plus|with|con|ademas de|mas|junto con)\b')
+                             r'\b(?:and|but|y|e|pero|plus|with|con|ademas de|mas|junto con)\b')
 _CONDITIONS = {
     'security_clearance': r'\b(?:security clearance|clearance|habilitacion de seguridad)\b',
     'weekend_work': r'\b(?:weekends?|fines de semana)\b',
@@ -137,7 +137,7 @@ def _mexico(segments):
         rf'\b(?:must|have to)\s+(?:reside|live|be based)\s+in\s+(?:the\s+)?{country}\b|'
         rf'\b(?:must|have to)\s+be\s+(?:a\s+)?{country}\s+(?:residents?|citizens?)\b|'
         rf'\bsolo\s+(?:contratamos\s+)?(?:residentes?|ciudadanos?)\s+(?:de|en)\s+{country}\b')
-    actor = r'we\s+(?:(?:can|may|are able to|are)\s+)?(?:hire|hiring|employ|engage)'
+    actor = r'we\s+(?:(?:can|are able to|are)\s+)?(?:hire|hiring|employ|engage)'
     people = r'(?:candidates?|applicants?|people|employees?|residents?|engineers?|developers?|workers?)'
     residence = (rf'{people}\s+(?:(?:who|that)\s+(?:are\s+)?)?'
                  r'(?:(?:residing|based|located|living)\s+in|from|in)\s+mexico')
@@ -159,6 +159,10 @@ def _mexico(segments):
         r'\bno contratamos\b[^.;]{0,100}\bmexico\b|'
         r'\bhiring\s+is\s+not\s+(?:permitted|allowed|supported)\s+(?:in|from)\s+mexico\b|'
         rf'\b{people}\s+(?:(?:who|that)\s+(?:are\s+)?)?not\s+(?:based|residing|located|living)\s+in\s+mexico\b|'
+        rf'\b(?:this\s+)?(?:role|position|vacancy)\s+(?:is\s+)?not\s+(?:open|available)\s+to\s+{residence}\b|'
+        rf'\b{residence}\s+(?:cannot|can not|can\x27t|may not|must not)\s+apply\b|'
+        rf'\b(?:(?:esta|este|la|el)\s+)?(?:vacante|puesto)\s+no\s+(?:esta|es)\s+(?:disponible|abiert[oa])\s+para\s+{spanish_residence}\b|'
+        rf'\b{spanish_residence}\s+no\s+(?:pueden|podran|deben)\s+(?:aplicar|postularse|solicitar)\b|'
         r'\bmexico\s+(?:(?:is|are)\s+)?(?:excluded|not eligible|no elegible)\b')
     hiring_context = re.compile(r'\b(?:hire|hiring|employ|contratamos|contratar|contratacion)\b')
     exclusion = re.compile(r'\b(?:except|excluding|excepto|salvo|menos|not|no)\s+mexico\b')
@@ -177,6 +181,7 @@ def _mexico(segments):
                 negative.append(item)
         match = permit.search(text)
         if (match and not _negated(text, match) and not rejected_here
+                and not re.search(r'\b(?:hope|hoping|hoped)\b', text[:match.start()])
                 and not re.search(r'\b(?:if|subject to|provided|pending|depending|sujeto a|si se)\b', text)
                 and not re.search(r'\b(?:except|excluding|excepto|salvo)\b', text)):
             positive.append(item)
@@ -265,9 +270,12 @@ def _degree(profile, segments):
     positive, waived = [], []
     for item in segments:
         text = _text(item)
-        match = _DEGREE.search(text)
-        if match:
+        seen_local = set()
+        for match in _DEGREE.finditer(text):
             local = _local_text(text, match)
+            if local in seen_local:
+                continue
+            seen_local.add(local)
             if re.search(r'\b(?:currently pursuing|pursuing|in progress|en curso|cursando|estudiante)\b', local):
                 waived.append(item)
             else:
@@ -279,7 +287,7 @@ def _degree(profile, segments):
         return _requirement('completed_degree', 'not_required', False, 'degree_not_mandatory', waived)
     mandatory = [(item, local) for item, local in positive if not _PREFERRED.search(local)]
     facts = mandatory or positive
-    alternative = any(re.search(r'\b(?:or equivalent experience|o experiencia equivalente|'
+    alternative = all(re.search(r'\b(?:or equivalent experience|o experiencia equivalente|'
                                  r'or equivalent practical experience)\b', local) for _, local in facts)
     if mandatory and waived:
         status, reason = 'contradictory', 'conflicting_degree_requirements'
@@ -325,15 +333,18 @@ def _languages(profile, segments):
         facts, waived = [], []
         for item in segments:
             text = _text(item)
-            pattern = r'\b(?:' + '|'.join(aliases) + r')\b'
-            match = re.search(pattern, text)
-            if not match and language == 'english':
-                match = re.search(r'\b(?:bilingual|bilingue)\b', text)
-            if match:
+            terms = [*aliases, *(['bilingual', 'bilingue'] if language == 'english' else [])]
+            pattern = r'\b(?:' + '|'.join(terms) + r')\b'
+            seen_local = set()
+            for match in re.finditer(pattern, text):
+                local = _local_text(text, match)
+                if local in seen_local:
+                    continue
+                seen_local.add(local)
                 if _negated(text, match):
                     waived.append(item)
                 else:
-                    facts.append((item, _local_text(text, match)))
+                    facts.append((item, local))
         if not facts and not waived:
             continue
         if not facts:

@@ -139,6 +139,24 @@ class MatchingTests(unittest.TestCase):
                 self.job.description = 'Python, Linux and troubleshooting. ' + restriction
                 self.assertEqual(evaluate_match(self.profile, self.job).recommendation, expected)
 
+    def test_repeated_obligations_and_specific_mexico_denials_do_not_become_priority(self):
+        self.profile.degree_completed = False
+        self.profile.language_levels['English'] = 'B1'
+        for text, recommendation in (
+            ('English preferred and fluent English required.', 'ineligible'),
+            ('Degree preferred, but completed degree required.', 'ineligible'),
+            ('This role is not available to candidates based in Mexico.', 'insufficient_information'),
+            ('Candidates residing in Mexico cannot apply.', 'insufficient_information'),
+        ):
+            with self.subTest(text=text):
+                self.job.description = 'We can hire candidates residing in Mexico. Fully remote. ' + text
+                self.assertEqual(evaluate_match(self.profile, self.job).recommendation, recommendation)
+        for text in ('We may hire candidates residing in Mexico.',
+                     'We hope we can hire candidates residing in Mexico.'):
+            with self.subTest(text=text):
+                self.job.description = 'Fully remote. ' + text
+                self.assertEqual(evaluate_match(self.profile, self.job).recommendation, 'insufficient_information')
+
     def test_new_essential_unknown_and_work_authorization_have_bilingual_labels(self):
         self.profile.experience_years = 5
         self.profile.work_authorized_countries = ['MX']

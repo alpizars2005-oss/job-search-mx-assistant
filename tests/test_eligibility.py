@@ -153,6 +153,49 @@ class EligibilityTests(unittest.TestCase):
         self.assertEqual(self.requirement("Bachelor's degree, or equivalent experience required.",
                                          'completed_degree')['status'], 'unknown')
 
+    def test_all_repeated_degree_and_language_facts_preserve_mandatory_obligations(self):
+        self.profile.language_levels['English'] = 'B1'
+        for description, name in (
+            ('English preferred and fluent English required.', 'language_english'),
+            ('Inglés deseable e inglés avanzado obligatorio.', 'language_english'),
+            ('Inglés deseable, pero inglés avanzado obligatorio.', 'language_english'),
+            ('Degree preferred, but completed degree required.', 'completed_degree'),
+            ('Título deseable, pero título terminado obligatorio.', 'completed_degree'),
+            ('Degree or equivalent experience required, but completed degree required.', 'completed_degree'),
+        ):
+            with self.subTest(description=description):
+                result = self.requirement(description, name)
+                self.assertTrue(result['required'])
+                self.assertEqual(result['status'], 'unmet')
+        self.profile.language_levels['English'] = 'C1'
+        self.assertEqual(self.requirement('English preferred and fluent English required.',
+                                         'language_english')['status'], 'met')
+        self.profile.degree_completed = True
+        self.assertEqual(self.requirement('Degree preferred, but completed degree required.',
+                                         'completed_degree')['status'], 'met')
+
+    def test_negative_availability_and_application_permission_are_explicit_mexico_restrictions(self):
+        generic_permission = 'We can hire candidates residing in Mexico. '
+        for denial in ('This role is not available to candidates based in Mexico.',
+                       'This position is not open to applicants residing in Mexico.',
+                       'Candidates residing in Mexico cannot apply.',
+                       'Esta vacante no está disponible para candidatos que residen en México.',
+                       'Candidatos que residen en México no pueden postularse.'):
+            with self.subTest(denial=denial):
+                self.assertEqual(self.requirement(denial)['status'], 'unmet')
+                self.assertEqual(self.requirement(generic_permission + denial)['status'], 'contradictory')
+        for permission in ('This role is available to candidates based in Mexico.',
+                           'Candidates residing in Mexico may apply.'):
+            with self.subTest(permission=permission):
+                self.assertEqual(self.requirement(permission)['status'], 'met')
+
+    def test_conditional_or_aspirational_employer_predicates_do_not_confirm_permission(self):
+        for description in ('We may hire candidates residing in Mexico.',
+                            'We hope we can hire candidates residing in Mexico.'):
+            with self.subTest(description=description):
+                self.assertEqual(self.requirement(description)['status'], 'unknown')
+        self.assertEqual(self.requirement('Candidates residing in Mexico may apply.')['status'], 'met')
+
     def test_us_and_unrecognized_country_work_authorization_are_never_silently_ignored(self):
         self.profile.work_authorized_countries = ['MX']
         result = self.requirement('Must be authorized to work in the United States.', 'work_authorization_us')
