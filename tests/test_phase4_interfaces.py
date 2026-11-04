@@ -4,6 +4,7 @@ import hashlib
 import io
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -13,7 +14,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from jobsearch_assistant.cli import main
-from jobsearch_assistant.config import data_home
+from jobsearch_assistant.config import data_home, database_path
 
 
 class Phase4InterfaceTests(unittest.TestCase):
@@ -176,6 +177,26 @@ class Phase4InterfaceTests(unittest.TestCase):
             self.assertEqual(self.invoke('candidacies', 'simulate', authorization)[0], 2)
         receipt = self.json_command('candidacies', 'simulate', authorization)
         self.assertIs(receipt['submitted'], False)
+
+    def test_backup_restore_revokes_old_permissions_and_allows_fresh_review(self):
+        candidacy, version = self.prepare_draft()
+        authorization = self.approve(candidacy)
+        backup = self.root / 'active-backup.sqlite3'
+        self.assertEqual(self.invoke('database', 'backup', '--source', str(database_path()),
+                                     '--output', str(backup))[0], 0)
+        self.json_command('candidacies', 'simulate', authorization)
+        recovered = self.root / 'recovered'
+        self.assertEqual(self.invoke('database', 'restore', '--source', str(backup),
+                                     '--output', str(recovered / 'applications.sqlite3'))[0], 0)
+        shutil.copytree(data_home() / 'resumes', recovered / 'resumes')
+        with patch.dict(os.environ, {'JOB_SEARCH_ASSISTANT_HOME': str(recovered)}):
+            checked = self.json_command('resumes', 'verify', version['version_id'])
+            self.assertEqual(checked['sha256'], version['sha256'])
+            self.assertEqual(self.invoke('candidacies', 'simulate', authorization)[0], 2)
+            renewed = self.approve(candidacy)
+            self.assertNotEqual(renewed, authorization)
+            self.assertIs(self.json_command('candidacies', 'simulate', renewed)['submitted'], False)
+        self.assertEqual(self.invoke('candidacies', 'simulate', authorization)[0], 2)
 
     def test_two_cli_processes_cannot_consume_the_same_authorization(self):
         candidacy, _ = self.prepare_draft()
