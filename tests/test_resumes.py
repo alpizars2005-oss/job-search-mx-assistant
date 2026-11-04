@@ -166,6 +166,32 @@ class ResumeStoreTests(unittest.TestCase):
             invalid['evidence'][0]['path'] = str(link)
             self.assert_redacted(self.store.import_master, invalid, base_dir=self.base)
 
+    @unittest.skipIf(os.name == 'nt', 'URL-shaped local filename requires POSIX colon support')
+    def test_raw_evidence_url_is_rejected_when_normalized_local_counterpart_exists(self):
+        raw_url = 'https://example.invalid/proof.txt'
+        local_counterpart = self.base / Path(raw_url)
+        local_counterpart.parent.mkdir(parents=True)
+        local_counterpart.write_bytes((self.base / 'proof.txt').read_bytes())
+        self.payload['evidence'][0]['path'] = raw_url
+        self.assert_redacted(self.store.import_master, self.payload, base_dir=self.base)
+        self.assertEqual(self.store.list_masters(), [])
+
+    def test_lists_reject_storage_directories_replaced_by_regular_files(self):
+        self.store.create_version(self.imported(), synthetic_job(), 'en')
+        for name, listing in (('masters', self.store.list_masters),
+                              ('versions', self.store.list_versions)):
+            with self.subTest(directory=name):
+                directory = self.store.root / name
+                preserved = self.store.root / (name + '-preserved')
+                directory.rename(preserved)
+                directory.write_bytes(b'Synthetic structural corruption')
+                try:
+                    self.assert_redacted(listing)
+                finally:
+                    directory.unlink()
+                    preserved.rename(directory)
+                self.assertEqual(len(listing()), 1)
+
     @unittest.skipUnless(hasattr(os, 'mkfifo'), 'POSIX FIFO required')
     def test_fifo_evidence_is_rejected_without_blocking(self):
         fifo = self.base / 'private-fifo'

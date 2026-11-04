@@ -101,12 +101,16 @@ def _bounded_json(value: object, limit: int) -> bytes:
     return encoded
 
 
-def _path(value: object, *, outside: bool = True) -> Path:
-    _require(isinstance(value, (str, os.PathLike)), 'invalid_resume_path')
-    raw = os.fspath(value)
+def _local_path_text(raw: object) -> None:
     _require(type(raw) is str and bool(raw) and '\x00' not in raw
              and '://' not in raw and not raw.casefold().startswith(('file:', 'http:', 'https:')),
              'invalid_resume_path')
+
+
+def _path(value: object, *, outside: bool = True) -> Path:
+    _require(isinstance(value, (str, os.PathLike)), 'invalid_resume_path')
+    raw = os.fspath(value)
+    _local_path_text(raw)
     # Check the original path as well as the normalized path: link/../file must
     # never disguise a traversal through a symlink.
     original = Path(raw).absolute()
@@ -301,6 +305,7 @@ class ResumeStore:
         copied = []
         total = 0
         for evidence in master['evidence']:
+            _local_path_text(evidence['path'])
             source = Path(evidence['path'])
             source = _path(source if source.is_absolute() else base / source)
             data = _read(source, MAX_EVIDENCE_BYTES)
@@ -331,8 +336,9 @@ class ResumeStore:
 
     @_safe
     def list_masters(self) -> list[dict]:
-        _path(self.root / 'masters')
-        return [self.get_master(path.stem) for path in sorted((self.root / 'masters').glob('*.json'))]
+        directory = _path(self.root / 'masters')
+        _require(directory.is_dir(), 'invalid_resume_path')
+        return [self.get_master(path.stem) for path in sorted(directory.glob('*.json'))]
 
     @_safe
     def create_version(self, master_id: str, job: NormalizedJob, language: str, *,
@@ -400,8 +406,9 @@ class ResumeStore:
 
     @_safe
     def list_versions(self) -> list[dict]:
-        _path(self.root / 'versions')
-        return [self.verify_version(path.stem) for path in sorted((self.root / 'versions').glob('*.json'))]
+        directory = _path(self.root / 'versions')
+        _require(directory.is_dir(), 'invalid_resume_path')
+        return [self.verify_version(path.stem) for path in sorted(directory.glob('*.json'))]
 
     @_safe
     def export_version(self, version_id, destination: Path) -> Path:
