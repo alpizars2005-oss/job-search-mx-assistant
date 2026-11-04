@@ -1,0 +1,67 @@
+# Catálogo documental; no se implementaron conectores ni lectura automática.
+# Las regiones son candidatas de investigación, no permisos de contratación.
+schema_version: 1
+enabled: false
+verification_states:
+  board_status: [confirmed, unverified, unavailable]
+  regional_eligibility_status: [pending, verified_per_job, ineligible_per_job]
+  information_status: [partially_verified, unverified, source_unavailable]
+companies:
+  - name: GitLab
+    ats_provider: greenhouse
+    board_url: https://job-boards.greenhouse.io/gitlab/
+    potential_hiring_regions: [Mexico, Latin America]
+    board_status: confirmed
+    regional_eligibility_status: pending
+    information_status: partially_verified
+    checked_on: "2026-11-04"
+    verification_method: manual_web_read
+    enabled: false
+    evidence_sources:
+      - url: https://job-boards.greenhouse.io/gitlab/
+        supports: public_board_identity
+      - url: https://handbook.gitlab.com/handbook/hiring/candidate-faq/
+        supports: official_hiring_process_and_greenhouse_usage
+    notes: >-
+      Tablero público identificado como GitLab. La muestra consultada contiene
+      restricciones por país; remoto o AMER no demuestra elegibilidad para México.
+      México/LATAM son regiones por investigar; no se confirmó una vacante apta.
+  - name: dLocal
+    ats_provider: lever
+    board_url: https://jobs.lever.co/dlocal
+    potential_hiring_regions: [Mexico, Latin America]
+    board_status: confirmed
+    regional_eligibility_status: pending
+    information_status: partially_verified
+    checked_on: "2026-11-04"
+    verification_method: manual_web_read
+    enabled: false
+    evidence_sources:
+      - url: https://jobs.lever.co/dlocal
+        supports: public_board_identity_and_empty_state
+    notes: >-
+      La página de Lever enlaza al sitio oficial de dLocal y muestra que no hay
+      publicaciones abiertas en la consulta. No interpretar un tablero vacío
+      como fallo de fuente ni como prueba de contratación regional. Pendiente
+      revalidar actividad, políticas y ofertas individuales en una fase posterior.
+  - name: Supabase
+    ats_provider: ashby
+    board_url: https://jobs.ashbyhq.com/supabase
+    potential_hiring_regions: [Mexico, Latin America]
+    board_status: confirmed
+    regional_eligibility_status: pending
+    information_status: partially_verified
+    checked_on: "2026-11-04"
+    verification_method: manual_web_read_and_official_careers_links
+    enabled: false
+    evidence_sources:
+      - url: https://supabase.com/careers
+        supports: official_ashby_links_and_remote_global_or_amer_roles
+      - url: https://jobs.ashbyhq.com/supabase
+        supports: ashby_page_accessible_but_requires_javascript
+    notes: >-
+      La página oficial de carreras enlaza vacantes de Ashby y muestra puestos
+      Remote Global y AMER. El tablero por sí solo requiere JavaScript y no
+      permitió inspeccionar su lista en la lectura de texto. No se ejecutó
+      JavaScript ni la API. Elegibilidad contractual desde México/LATAM pendiente
+      por vacante; AMER o Global no bastan para confirmarla.

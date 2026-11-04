@@ -1,0 +1,98 @@
+# Perfil 100% sintético para planificación. No describe a una persona real.
+# La aplicación actual importa JSON, no este YAML; no se añadió un loader.
+schema_version: 1
+synthetic: true
+professional:
+  display_name: "Synthetic Example Candidate"
+  headline: "Synthetic junior technology student"
+  summary: "Ejemplo ficticio de estudiante con proyectos de aprendizaje."
+  evidence_status: synthetic_example
+location:
+  country_code: MX
+  region: "Synthetic Region"
+  timezone: America/Mexico_City
+  geographic_eligibility:
+    candidate_country: MX
+    employer_permission: unknown
+    verification_status: pending_per_job
+    evidence: []
+work_preferences:
+  remote_only: true
+  preferred_regions: [Mexico, Latin America]
+  preferred_experience_years: {minimum: 0, maximum: 2}
+target_roles:
+  employment:
+    - Junior Python Developer
+    - Junior Backend Developer
+    - Technical Support Engineer
+    - QA Engineer
+    - Junior DevOps Engineer
+  technical_internships: [Software Engineering Intern]
+  freelance: [Python Automation Contractor]
+  ai_training: [AI Coding Trainer, AI Code Evaluator]
+education:
+  - institution: "Synthetic Example Institute"
+    program: "Computer Systems Engineering"
+    status: in_progress
+    completed_degree: false
+    evidence_status: synthetic_example
+skills:
+  - name: Python
+    level: beginner
+    evidence: [synthetic_inventory_project]
+    evidence_status: synthetic_example
+  - name: Linux
+    level: beginner
+    evidence: [synthetic_inventory_project]
+    evidence_status: synthetic_example
+  - name: Git
+    level: beginner
+    evidence: [synthetic_inventory_project]
+    evidence_status: synthetic_example
+experience:
+  formal_employment: []
+  note: "Ejemplo sin empleos formales; los proyectos no son experiencia laboral."
+projects:
+  - id: synthetic_inventory_project
+    name: "Synthetic local inventory exercise"
+    category: personal_learning
+    description: "Ejercicio ficticio de Python, Git y archivos locales en Linux."
+    technologies: [Python, Git, Linux]
+    outcomes: []
+    evidence_status: synthetic_example
+languages:
+  - name: Spanish
+    level: "Synthetic example: native"
+    evidence_status: synthetic_example
+  - name: English
+    level: "Synthetic example: intermediate, unverified"
+    evidence_status: synthetic_example
+certifications: []
+salary_expectation:
+  currency: MXN
+  period: monthly
+  basis: gross
+  minimum: 20000
+  target_maximum: 30000
+  strategic_exception_requires_manual_review: true
+exclusion_rules:
+  confirmed_failures:
+    - generic_customer_service
+    - sales_or_retention
+    - us_residents_only
+    - completed_degree_required_without_alternative
+    - incompatible_mandatory_experience
+    - upfront_payment
+  missing_essential_information: insufficient_information
+  unknown_is_verified: false
+search_preferences:
+  categories: [employment, technical_internships, freelance, ai_training]
+  manual_url_import_only: [linkedin, indeed]
+  verify_job_is_open: true
+  verify_mexico_eligibility_per_job: true
+  language: es
+safety:
+  dry_run: true
+  auto_submit: false
+  notifications_enabled: false
+  authorization_required_for_each_submission: true
