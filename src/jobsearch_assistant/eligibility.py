@@ -33,6 +33,9 @@ _LANGUAGES = {
 }
 _LEVELS = {'a1': 1, 'basic': 1, 'a2': 2, 'b1': 3, 'intermediate': 3,
            'b2': 4, 'advanced': 5, 'c1': 5, 'fluent': 5, 'c2': 6, 'native': 6}
+# Boundaries separate independent facts while retaining explicit degree alternatives.
+_FACT_SEPARATOR = re.compile(r',(?!(?:\s*)(?:or equivalent|o experiencia equivalente))|;|'
+                             r'\b(?:and|but|y|pero|plus|with|con|ademas de|mas|junto con)\b')
 _CONDITIONS = {
     'security_clearance': r'\b(?:security clearance|clearance|habilitacion de seguridad)\b',
     'weekend_work': r'\b(?:weekends?|fines de semana)\b',
@@ -79,8 +82,11 @@ def _negated(text: str, match: re.Match) -> bool:
     before = ' '.join(before.split()[-8:])
     after = text[match.end():match.end() + 40]
     return bool(re.search(r'\b(?:no|not|never|without|sin|nunca|cannot|can\x27t)\b', before)
-                or re.match(r'\s+(?:is |are |es |son )?(?:not required|not needed|not available|'
-                            r'no obligatori[oa]|no requerid[oa])\b', after))
+                or re.match(r'\s+(?:(?:work|position|role|trabajo|puesto)\s+)?'
+                            r'(?:(?:is|are|will be|es|son|esta)\s+)?'
+                            r'(?:not required|not needed|not available|unavailable|prohibited|'
+                            r'not permitted|not allowed|no esta disponible|no disponible|'
+                            r'prohibid[oa]|no obligatori[oa]|no requerid[oa])\b', after))
 
 
 def affirmed_phrase(segment: dict[str, Any], phrase: str) -> bool:
@@ -93,10 +99,10 @@ def affirmed_phrase(segment: dict[str, Any], phrase: str) -> bool:
     return any(not _negated(text, match) for match in re.finditer(pattern, text))
 
 
-def _local_text(text: str, match: re.Match) -> str:
+def _local_text(text: str, match: re.Match, separator=_FACT_SEPARATOR) -> str:
     # Qualifiers bind to a conjunction/comma-separated fact, not every fact in
     # a paragraph. Keep evidence on the complete original statement.
-    boundaries = list(re.finditer(r'[,;]|\b(?:and|but|y|pero)\b', text))
+    boundaries = list(separator.finditer(text))
     start = max((part.end() for part in boundaries if part.end() <= match.start()), default=0)
     end = min((part.start() for part in boundaries if part.start() >= match.end()), default=len(text))
     return text[start:end]
@@ -131,30 +137,48 @@ def _mexico(segments):
         rf'\b(?:must|have to)\s+(?:reside|live|be based)\s+in\s+(?:the\s+)?{country}\b|'
         rf'\b(?:must|have to)\s+be\s+(?:a\s+)?{country}\s+(?:residents?|citizens?)\b|'
         rf'\bsolo\s+(?:contratamos\s+)?(?:residentes?|ciudadanos?)\s+(?:de|en)\s+{country}\b')
+    actor = r'we\s+(?:(?:can|may|are able to|are)\s+)?(?:hire|hiring|employ|engage)'
+    people = r'(?:candidates?|applicants?|people|employees?|residents?|engineers?|developers?|workers?)'
+    residence = (rf'{people}\s+(?:(?:who|that)\s+(?:are\s+)?)?'
+                 r'(?:(?:residing|based|located|living)\s+in|from|in)\s+mexico')
+    spanish_people = r'(?:candidatos?|personas?|residentes?|ingenieros?|trabajadores?)'
+    spanish_residence = (rf'{spanish_people}\s+(?:(?:que\s+)?(?:residen|viven)\s+en|'
+                         r'(?:residentes|radicados|ubicados)\s+en|en|desde)\s+mexico')
+    # Positive permission has a bounded hiring/residence grammar. Merely finding
+    # Mexico somewhere after "hire" also matches experience, offices and exclusions.
     permit = re.compile(
-        r'\b(?:we\s+(?:(?:can|may|are able to|are)\s+)?(?:hire|hiring|employ|engage)|'
-        r'hiring\s+(?:is\s+)?(?:permitted|allowed|supported)|'
-        r'contratamos|podemos\s+contratar|contratacion\s+(?:permitida|habilitada)|'
-        r'se permite\s+(?:contratar|la contratacion))\b.{0,110}\bmexico\b|'
-        r'\b(?:role|position|vacancy|puesto|vacante)\b.{0,50}\b(?:open|available|abiert[oa])\b.{0,80}\bmexico\b|'
-        r'\b(?:candidates?|applicants?|residents?)\b.{0,60}\bmexico\b.{0,40}\b(?:eligible|can apply|may apply)\b')
-    deny = re.compile(r'\b(?:cannot|can\x27t|do not|don\x27t|unable to|no podemos|no se permite)\s+'
-                      r'(?:hire|employ|contratar)\b.{0,110}\bmexico\b|'
-                      r'\bno contratamos\b.{0,110}\bmexico\b|'
-                      r'\bhiring\s+is\s+not\s+(?:permitted|allowed|supported)\b.{0,60}\bmexico\b|'
-                      r'\bmexico\b.{0,40}\b(?:excluded|not eligible|no elegible)\b')
+        rf'\b{actor}\s+(?:{residence}|(?:in|from)\s+mexico)\b|'
+        rf'\b(?:contratamos|podemos contratar)\s+(?:a\s+)?(?:{spanish_residence}|(?:en|desde)\s+mexico)\b|'
+        r'\b(?:hiring (?:is )?(?:permitted|allowed|supported))\s+(?:in|from)\s+mexico\b|'
+        r'\bcontratacion (?:permitida|habilitada)\s+(?:en|desde)\s+mexico\b|'
+        rf'\b(?:this\s+)?(?:role|position|vacancy)\s+(?:is\s+)?(?:open|available)\s+to\s+{residence}\b|'
+        rf'\b{residence}\s+(?:are\s+)?(?:eligible|can apply|may apply)\b')
+    deny = re.compile(
+        r'\b(?:cannot|can not|can\x27t|do not|don\x27t|unable to|no podemos|no se permite)\s+'
+        r'(?:hire|employ|contratar)\b[^.;]{0,100}\bmexico\b|'
+        r'\bno contratamos\b[^.;]{0,100}\bmexico\b|'
+        r'\bhiring\s+is\s+not\s+(?:permitted|allowed|supported)\s+(?:in|from)\s+mexico\b|'
+        rf'\b{people}\s+(?:(?:who|that)\s+(?:are\s+)?)?not\s+(?:based|residing|located|living)\s+in\s+mexico\b|'
+        r'\bmexico\s+(?:(?:is|are)\s+)?(?:excluded|not eligible|no elegible)\b')
+    hiring_context = re.compile(r'\b(?:hire|hiring|employ|contratamos|contratar|contratacion)\b')
+    exclusion = re.compile(r'\b(?:except|excluding|excepto|salvo|menos|not|no)\s+mexico\b')
+    role_exception = re.compile(r'\b(?:except|excluding|excepto|salvo)\s+(?:this|the|este|esta)\s+(?:role|position|puesto|vacante)\b|'
+                                r'\b(?:this|the)\s+(?:role|position)\s+is\s+excluded\b')
     for item in segments:
         text = _text(item)
         if re.search(r'\b(?:mexico|latam|americas|global|worldwide)\b', text):
             hints.append(item)
-        if deny.search(text):
+        rejected_here = bool(deny.search(text) or (hiring_context.search(text) and exclusion.search(text))
+                             or (permit.search(text) and role_exception.search(text)))
+        if rejected_here:
             negative.append(item)
         for match in us_only.finditer(text):
             if not _negated(text, match):
                 negative.append(item)
         match = permit.search(text)
-        if (match and not _negated(text, match) and not deny.search(text)
-                and not re.search(r'\b(?:if|subject to|provided|pending|depending|sujeto a|si se)\b', text)):
+        if (match and not _negated(text, match) and not rejected_here
+                and not re.search(r'\b(?:if|subject to|provided|pending|depending|sujeto a|si se)\b', text)
+                and not re.search(r'\b(?:except|excluding|excepto|salvo)\b', text)):
             positive.append(item)
     status = _combined(positive, negative)
     reason = {'met': 'explicit_mexico_hiring_permission', 'unmet': 'explicit_geographic_exclusion',
@@ -186,7 +210,10 @@ def _remote(profile, segments):
 
 
 def _experience(profile, segments):
-    required, preferred, waived = [], [], []
+    required, preferred, waived, scoped_required = [], [], [], []
+    # A technology/role following 'experience with/in/as' belongs to the years
+    # requirement; it is not a separate fact for this particular rule.
+    year_separator = re.compile(r',|;|\b(?:and|but|y|pero|plus|ademas de|mas)\b')
     for item in segments:
         text = _text(item)
         if re.search(r'\b(?:no experience (?:is )?(?:required|needed)|sin experiencia|'
@@ -197,9 +224,18 @@ def _experience(profile, segments):
         if not matches or not (re.search(r'\b(?:experience|experiencia)\b', text) or _REQUIREMENT.search(text)):
             continue
         for match in matches:
-            local = _local_text(text, match)
+            local = _local_text(text, match, year_separator)
             bucket = preferred if _PREFERRED.search(local) else required
             bucket.append((float(match.group(1)), item))
+            after_years = local[_YEARS.search(local).end():]
+            experience = re.search(r'\b(?:experience|experiencia)\b', after_years)
+            before_experience = after_years[:experience.start()] if experience else ''
+            scope_words = re.sub(r'\b(?:of|de|professional|profesional|work|laboral|relevant|relevante|prior|previous|previa)\b', '', before_experience).strip()
+            specialized = (any(contains_phrase(local, skill) for skill in COMMON_TECH_SKILLS)
+                           or bool(scope_words)
+                           or re.search(r'\b(?:experience|experiencia)\s+(?:in|with|as|en|como|de)\s+(?!total\b)\w', after_years))
+            if bucket is required and specialized:
+                scoped_required.append(item)
     result = []
     for name, facts, mandatory in [('experience', required, True), ('preferred_experience', preferred, False)]:
         if not facts:
@@ -219,6 +255,9 @@ def _experience(profile, segments):
         if profile.experience_years is not None:
             evidence.append(_profile_evidence('experience_years', profile.experience_years))
         result.append(_requirement(name, status, mandatory, reason, evidence, minimum_years=minimum))
+    if scoped_required:
+        result.append(_requirement('scoped_experience', 'unknown', True,
+                                    'technology_or_role_experience_not_verified', scoped_required))
     return result
 
 
@@ -228,16 +267,20 @@ def _degree(profile, segments):
         text = _text(item)
         match = _DEGREE.search(text)
         if match:
-            if re.search(r'\b(?:currently pursuing|pursuing|in progress|en curso|cursando|estudiante)\b', text):
+            local = _local_text(text, match)
+            if re.search(r'\b(?:currently pursuing|pursuing|in progress|en curso|cursando|estudiante)\b', local):
                 waived.append(item)
             else:
-                (waived if _negated(text, match) else positive).append(item)
+                if _negated(text, match):
+                    waived.append(item)
+                else:
+                    positive.append((item, local))
     if not positive:
         return _requirement('completed_degree', 'not_required', False, 'degree_not_mandatory', waived)
-    mandatory = [item for item in positive if not _PREFERRED.search(_text(item))]
+    mandatory = [(item, local) for item, local in positive if not _PREFERRED.search(local)]
     facts = mandatory or positive
     alternative = any(re.search(r'\b(?:or equivalent experience|o experiencia equivalente|'
-                                 r'or equivalent practical experience)\b', _text(item)) for item in facts)
+                                 r'or equivalent practical experience)\b', local) for _, local in facts)
     if mandatory and waived:
         status, reason = 'contradictory', 'conflicting_degree_requirements'
     elif alternative:
@@ -253,7 +296,7 @@ def _degree(profile, segments):
     else:
         status = 'met' if profile.degree_completed else 'unmet'
         reason = 'completed_degree_verified' if status == 'met' else 'completed_degree_missing'
-    evidence = facts + waived
+    evidence = [item for item, _ in facts] + waived
     if profile.degree_completed is not None:
         evidence.append(_profile_evidence('degree_completed', profile.degree_completed))
     if alternative and profile.conditions.get('equivalent_experience') is not None:
@@ -287,17 +330,19 @@ def _languages(profile, segments):
             if not match and language == 'english':
                 match = re.search(r'\b(?:bilingual|bilingue)\b', text)
             if match:
-                (waived if _negated(text, match) else facts).append(item)
+                if _negated(text, match):
+                    waived.append(item)
+                else:
+                    facts.append((item, _local_text(text, match)))
         if not facts and not waived:
             continue
         if not facts:
             result.append(_requirement('language_' + language, 'not_required', False, 'language_not_required', waived))
             continue
-        mandatory = [item for item in facts if not _PREFERRED.search(_text(item))]
+        mandatory = [(item, local) for item, local in facts if not _PREFERRED.search(local)]
         relevant = mandatory or facts
         minimum = 0
-        for item in relevant:
-            text = _text(item)
+        for _, text in relevant:
             level = re.search(r'\b(a1|a2|b1|b2|c1|c2|advanced|avanzad[oa]|fluent|fluido|native|nativo)\b', text)
             if level:
                 word = level.group(1)
@@ -316,7 +361,7 @@ def _languages(profile, segments):
         else:
             status = 'met' if known or level_fact else 'unknown'
             reason = 'language_declared' if status == 'met' else 'candidate_language_unknown'
-        evidence = relevant + waived
+        evidence = [item for item, _ in relevant] + waived
         if level_fact:
             evidence.append(_profile_evidence('language_levels.' + level_fact[0], level_fact[1]))
         elif known:
@@ -367,7 +412,7 @@ def _conditions(profile, segments):
         text = _text(item)
         if not _REQUIREMENT.search(text):
             continue
-        for part in re.split(r'[,;]|\b(?:and|but|y|pero)\b', text):
+        for part in _FACT_SEPARATOR.split(text):
             if not part.strip() or _PREFERRED.search(part):
                 continue
             if any(re.search(pattern, part) for pattern in _CONDITIONS.values()):
@@ -403,16 +448,45 @@ def _conditions(profile, segments):
 
 
 def _work_authorization(profile, segments):
-    evidence = [item for item in segments if re.search(
-        r'\b(?:authorized to work|work authorization|permiso de trabajo|autorizad[oa] para trabajar)\b',
-        _text(item)) and 'mexico' in _text(item) and _REQUIREMENT.search(_text(item))]
-    if not evidence:
-        return []
-    value = profile.work_authorized_countries
-    status = 'unknown' if value is None else 'met' if 'MX' in value else 'unmet'
-    if value is not None:
-        evidence.append(_profile_evidence('work_authorized_countries', value))
-    return [_requirement('work_authorization_mx', status, True, 'candidate_work_authorization_' + status, evidence)]
+    authorization = re.compile(r'\b(?:authorized to work|work authorization|permiso de trabajo|autorizad[oa] para trabajar)\b')
+    countries = {
+        'MX': r'\bmexico\b', 'US': r'\b(?:united states|estados unidos|us|u\.s\.?)\b',
+        'CA': r'\bcanada\b', 'GB': r'\b(?:uk|united kingdom|reino unido)\b',
+        'DE': r'\b(?:germany|alemania)\b', 'ES': r'\b(?:spain|espana)\b',
+    }
+    grouped: dict[str, list[tuple[dict, bool, bool, list[str]]]] = {}
+    for item in segments:
+        text = _text(item)
+        for match in authorization.finditer(text):
+            local = _local_text(text, match)
+            if not (_REQUIREMENT.search(text) or _PREFERRED.search(text)):
+                continue
+            codes = [code for code, pattern in countries.items() if re.search(pattern, local)]
+            key = codes[0].lower() if len(codes) == 1 else 'alternatives' if codes else 'unknown'
+            grouped.setdefault(key, []).append((item, bool(_PREFERRED.search(local)),
+                                                _negated(text, match), codes))
+    result = []
+    for key, facts in grouped.items():
+        affirmative = [(item, codes) for item, _, negative, codes in facts if not negative]
+        mandatory = [item for item, optional, negative, _ in facts if not optional and not negative]
+        waived = [item for item, _, negative, _ in facts if negative]
+        value = profile.work_authorized_countries
+        if mandatory and waived:
+            status = 'contradictory'
+        elif not affirmative:
+            status = 'not_required'
+        elif value is None or key in ('unknown', 'alternatives'):
+            # Country lists can express alternatives or cumulative obligations;
+            # preserve uncertainty instead of inventing that contract.
+            status = 'unknown'
+        else:
+            status = 'met' if key.upper() in value else 'unmet'
+        evidence = [item for item, _ in affirmative] + waived
+        if value is not None:
+            evidence.append(_profile_evidence('work_authorized_countries', value))
+        result.append(_requirement('work_authorization_' + key, status, bool(mandatory),
+                                    'candidate_work_authorization_' + status, evidence))
+    return result
 
 
 def _education_in_progress(profile, segments):

@@ -114,11 +114,85 @@ class EligibilityTests(unittest.TestCase):
         self.assertEqual(self.requirement(description, 'work_authorization_mx')['status'], 'unmet')
 
     def test_student_friendly_education_does_not_require_completed_degree(self):
+        required = self.requirement('Currently pursuing a degree required.', 'degree_in_progress')
+        self.assertTrue(required['required'])
+        self.assertEqual(required['status'], 'unknown')
+        self.profile.conditions['degree_in_progress'] = True
+        self.assertEqual(self.requirement('Currently pursuing a degree required.', 'degree_in_progress')['status'], 'met')
         for description in ('Currently pursuing a degree required.',
                             'Estudiante de ingeniería / carrera en curso.',
                             "Bachelor's degree in progress accepted."):
             with self.subTest(description=description):
                 self.assertEqual(self.requirement(description, 'completed_degree')['status'], 'not_required')
+
+    def test_hiring_permission_requires_an_affirmative_residence_assertion(self):
+        for description, expected in (
+            ('We can hire in all countries except Mexico.', 'unmet'),
+            ('We can hire candidates from Canada but not Mexico.', 'unmet'),
+            ('We can hire candidates who are not based in Mexico.', 'unmet'),
+            ('We hire in the US, not Mexico.', 'unmet'),
+            ('We are hiring engineers with experience in Mexico.', 'unknown'),
+            ('We can hire candidates residing in Mexico except this role.', 'unmet'),
+            ('Podemos contratar en todos los países excepto México.', 'unmet'),
+            ('We can hire candidates residing in Mexico, but this role is excluded.', 'unmet'),
+        ):
+            with self.subTest(description=description):
+                self.assertEqual(self.requirement(description)['status'], expected)
+
+    def test_degree_and_language_qualifiers_are_local_to_their_fact(self):
+        result = self.requirement("Bachelor's degree required, English preferred.", 'completed_degree')
+        self.assertTrue(result['required'])
+        self.assertEqual(result['status'], 'unmet')
+        self.profile.language_levels['English'] = 'B1'
+        result = self.requirement('Fluent English required, Python preferred.', 'language_english')
+        self.assertTrue(result['required'])
+        self.assertEqual(result['status'], 'unmet')
+        result = self.requirement('English preferred, fluent Spanish required.', 'language_english')
+        self.assertFalse(result['required'])
+        self.assertEqual(result['status'], 'met')
+        self.assertEqual(self.requirement("Bachelor's degree, or equivalent experience required.",
+                                         'completed_degree')['status'], 'unknown')
+
+    def test_us_and_unrecognized_country_work_authorization_are_never_silently_ignored(self):
+        self.profile.work_authorized_countries = ['MX']
+        result = self.requirement('Must be authorized to work in the United States.', 'work_authorization_us')
+        self.assertEqual(result['status'], 'unmet')
+        self.assertTrue(result['required'])
+        self.profile.work_authorized_countries = None
+        self.assertEqual(self.requirement('Must be authorized to work in the United States.',
+                                         'work_authorization_us')['status'], 'unknown')
+        requirements = evaluate_eligibility(self.profile, JobPosting(description='Must be authorized to work in Atlantis.'))
+        self.assertTrue(any(r['required'] and r['status'] == 'unknown'
+                            and r['name'].startswith('work_authorization_') for r in requirements))
+
+    def test_additive_and_prepositional_mandatory_facts_remain_unknown(self):
+        for description in ('Must have English proficiency plus an active medical registration.',
+                            'Must know Python plus an active medical registration.',
+                            'Must have English proficiency with an active medical registration.',
+                            'Se requiere inglés más un registro médico vigente.',
+                            'Se requiere Python con un registro médico vigente.',
+                            'Se requiere Python además de un registro médico vigente.'):
+            with self.subTest(description=description):
+                requirements = evaluate_eligibility(self.profile, JobPosting(description=description))
+                self.assertTrue(any(r['required'] and r['status'] == 'unknown'
+                                    and r['name'].startswith('additional_requirement_') for r in requirements))
+
+    def test_total_experience_does_not_prove_years_in_a_specific_technology_or_role(self):
+        self.profile.experience_years = 5
+        for description in ('5 years of Java experience required.',
+                            '5 years of experience with Python required.',
+                            'Se requieren 5 años de experiencia como contador.'):
+            with self.subTest(description=description):
+                requirements = evaluate_eligibility(self.profile, JobPosting(description=description))
+                self.assertTrue(any(r['required'] and r['status'] == 'unknown'
+                                    and r['name'] == 'scoped_experience' for r in requirements))
+
+    def test_remote_negative_predicates_after_the_noun_are_not_positive(self):
+        for description in ('Remote work is unavailable.', 'Remote work is prohibited.',
+                            'El trabajo remoto no está disponible.'):
+            with self.subTest(description=description):
+                self.assertEqual(self.requirement(description, 'remote_work', location='')['status'], 'unmet')
+                self.assertEqual(self.requirement(description, 'remote_work', location='Fully remote')['status'], 'contradictory')
 
     def test_remote_preference_can_be_disabled(self):
         self.profile.remote_only = False

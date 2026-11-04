@@ -120,6 +120,37 @@ class MatchingTests(unittest.TestCase):
         for signal in ('skill_match', 'target_role', 'location_match', 'junior_friendly', 'remote_match'):
             self.assertTrue(any(fact.get('signal') == signal for fact in result.evidence), signal)
 
+    def test_adversarial_eligibility_cannot_be_overridden_by_high_compatibility(self):
+        self.profile.degree_completed = False
+        self.profile.experience_years = 5
+        self.profile.language_levels['English'] = 'B1'
+        self.profile.work_authorized_countries = ['MX']
+        for restriction, expected in (
+            ('We can hire in all countries except Mexico.', 'ineligible'),
+            ('We are hiring engineers with experience in Mexico.', 'insufficient_information'),
+            ("We can hire candidates residing in Mexico. Bachelor's degree required, English preferred.", 'ineligible'),
+            ('We can hire candidates residing in Mexico. Fluent English required, Python preferred.', 'ineligible'),
+            ('We can hire candidates residing in Mexico. Must be authorized to work in the United States.', 'ineligible'),
+            ('We can hire candidates residing in Mexico. Must know Python plus an active medical registration.', 'insufficient_information'),
+            ('We can hire candidates residing in Mexico. 5 years of Java experience required.', 'insufficient_information'),
+            ('We can hire candidates residing in Mexico. Remote work is unavailable.', 'insufficient_information'),
+        ):
+            with self.subTest(restriction=restriction):
+                self.job.description = 'Python, Linux and troubleshooting. ' + restriction
+                self.assertEqual(evaluate_match(self.profile, self.job).recommendation, expected)
+
+    def test_new_essential_unknown_and_work_authorization_have_bilingual_labels(self):
+        self.profile.experience_years = 5
+        self.profile.work_authorized_countries = ['MX']
+        self.job.description = ('We can hire candidates residing in Mexico. '
+                                '5 years of Java experience required. '
+                                'Must be authorized to work in the United States.')
+        result = evaluate_match(self.profile, self.job)
+        self.assertIn('Experiencia específica sin verificar', explain_evaluation(result, 'es'))
+        self.assertIn('Unverified technology or role experience', explain_evaluation(result, 'en'))
+        self.assertIn('Permiso para trabajar en Estados Unidos', explain_evaluation(result, 'es'))
+        self.assertIn('Permission to work in the United States', explain_evaluation(result, 'en'))
+
     def test_negated_skill_use_does_not_earn_matching_points(self):
         profile = CandidateProfile(skills=['python'])
         result = evaluate_match(profile, JobPosting(description='We do not use Python.'))
