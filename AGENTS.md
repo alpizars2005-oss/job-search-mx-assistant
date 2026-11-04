@@ -154,6 +154,6 @@ unitarias o de integración.
 
 En Windows usar el intérprete equivalente de `.venv\Scripts\python.exe`.
 `pytest` es una dependencia opcional de desarrollo ya declarada: ejecutarlo
-cuando esté disponible, pues `unittest` no descubre las funciones de
-`tests/test_exporters.py`. Conservar la matriz Windows/Linux de CI y sus smoke
+cuando esté disponible. Desde Fase 2, `tests/test_exporters.py` usa TestCase y
+sus pruebas CSV también se ejecutan con el comando unittest de CI. Conservar la matriz Windows/Linux de CI y sus smoke
 tests. Registrar fallos y limitaciones sin ocultarlos ni ampliar la fase.

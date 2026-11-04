@@ -21,3 +21,21 @@ The GUI and CLI do not duplicate business logic. Both call the evaluator and dat
 - No authenticated scraping.
 - No automatic application submission.
 - Explainable scoring with visible evidence.
+
+
+## Descubrimiento público implementado en Fase 2
+
+El paquete `sources` permanece separado de los modelos y la base del tracker:
+
+- `models.py`: configuración validada, límites, vacante normalizada y reportes.
+- `http.py`: transporte GET urllib sin redirects y cliente con cuotas compartidas,
+  timeouts, límite de bytes, reintentos/jitter, Retry-After y pausas en memoria.
+- `adapters.py`: endpoints fijos, validación y transformación de cada contrato ATS.
+- `discovery.py`: orquestación serial y deduplicación por proveedor/tablero/ID.
+- `config.py`: configuración JSON explícita, acotada y separada de perfiles.
+
+`jobsearch discover` usa ese paquete sin abrir SQLite o leer perfiles. La GUI,
+evaluador y exportadores históricos conservan sus interfaces. La salida incluye
+procedencia por campo y evidencia regional sin interpretación; no conecta el
+score anterior a un filtro de elegibilidad. Transporte y reloj son inyectables
+para pruebas offline. Ver [contrato y operación](JOB_SOURCES.md).

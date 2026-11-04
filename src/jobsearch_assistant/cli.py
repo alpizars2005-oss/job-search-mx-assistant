@@ -69,6 +69,10 @@ def build_parser() -> argparse.ArgumentParser:
     settings = sub.add_parser("settings", help="Change application settings")
     settings.add_argument("--language", choices=("en", "es"), required=True)
 
+    discover = sub.add_parser("discover", help="Read explicitly enabled public ATS job boards")
+    discover.add_argument("--config", type=Path, help="Separate JSON source configuration")
+    discover.add_argument("--language", choices=("es", "en"), default="es")
+
     sub.add_parser("doctor", help="Check the local installation")
     sub.add_parser("gui", help="Open the desktop interface")
     return parser
@@ -215,8 +219,29 @@ def command_doctor() -> int:
     return 1 if errors else 0
 
 
+def command_discover(args: argparse.Namespace) -> int:
+    from .sources.config import load_source_config
+    from .sources.discovery import DiscoveryEngine
+    from .sources.http import SafeHttpClient
+
+    try:
+        configs, policy = load_source_config(args.config)
+    except ValueError:
+        message = ("Configuración de fuentes inválida" if args.language == "es"
+                   else "Invalid source configuration")
+        print(message, file=sys.stderr)
+        return 2
+    result = DiscoveryEngine(SafeHttpClient(policy)).run(configs)
+    print(json.dumps(result.to_dict(), ensure_ascii=True, indent=2))
+    return 1 if any(report.status in {"error", "paused", "partial"}
+                    for report in result.reports) else 0
+
+
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
+    if args.command == "discover":
+        # Discovery does not read profiles, create private files or open SQLite.
+        raise SystemExit(command_discover(args))
     ensure_workspace()
     if args.command == "init":
         code = command_init(args)

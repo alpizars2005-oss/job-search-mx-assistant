@@ -1,14 +1,27 @@
 # Plan técnico: automatización de búsqueda de empleo
 
-Fecha de auditoría: 2026-11-04. Base: `main` en
+Fecha de auditoría de Fase 1: 2026-11-04. Base histórica: `main` en
 `54c7c9ee21fd88625386799782f40da8b6882a5d`.
 
-**Única fase autorizada en esta entrega: Fase 1, auditoría y planificación.**
-Los componentes y contratos futuros descritos aquí no están implementados.
+**Fase actualmente autorizada: Fase 2, motor de descubrimiento.**
+La Fase 1 fue integrada en el PR #6. Base de Fase 2:
+`b69a6fedc3a3e83a794f7d3e1078332c792d983e`.
+Los componentes de Fases 3–6 siguen siendo objetivos sin implementar.
 Cada fase termina en un PR a `main`; no fusionar automáticamente ni comenzar
 una fase dependiente hasta integrar su requisito y obtener autorización de alcance.
 
-## Estado actual verificado
+## Estado de Fase 2
+
+Implementados lectores GET de Greenhouse, Lever y Ashby, transporte acotado,
+validación de datos/URLs, normalización con procedencia, deduplicación en memoria,
+configuración JSON opt-in y comando `discover`. No se modifican SQLite, perfiles
+JSON, matching o GUI. Las dos pruebas CSV ahora son descubiertas por unittest
+incluido en CI. Documentación y evidencia en [JOB_SOURCES](docs/JOB_SOURCES.md);
+plan de ejecución en [plan de Fase 2](docs/superpowers/plans/2026-11-04-job-sources.md).
+Las consultas reales desde Cloud no obtuvieron datos por restricción de red;
+no se declara conectividad de runtime con los proveedores.
+
+## Estado verificado al cierre de Fase 1 (histórico)
 
 Existe una aplicación Python 3.10+ con CLI, GUI Tkinter bilingüe, perfil JSON,
 evaluador determinista, tracker SQLite, exportación CSV/JSON, enlaces de búsqueda,
@@ -121,7 +134,7 @@ Prioridades de ingeniería, no puntuaciones de vulnerabilidad:
 
 ## Fases, entregables y criterios de aceptación
 
-### Fase 1 — Auditoría y planificación (esta entrega)
+### Fase 1 — Auditoría y planificación (integrada, PR #6)
 
 Entregables: `AGENTS.md`, este `PLAN.md`, `profile.example.yaml`,
 `sources/companies.yaml`, registro verificable de auditoría y un PR documental
@@ -134,9 +147,9 @@ con una sola tabla comparativa de los cinco repositorios externos.
 Cierre: commits atómicos y PR a `main`, con hashes y resultados en la descripción
 del PR y el resumen de entrega. Después, detenerse.
 
-### Fase 2 — Fuentes de vacantes (pendiente, no iniciada)
+### Fase 2 — Fuentes de vacantes (esta entrega)
 
-Requiere Fase 1 integrada y autorización para esta fase. Evaluar acceso/términos
+Requisito satisfecho: Fase 1 integrada y Fase 2 autorizada explícitamente. Evaluar acceso/términos
 de cada fuente, validar identificadores del catálogo y confirmar permisos de red
 de Cloud. Ningún tablero confirmado implica elegibilidad desde México.
 
@@ -211,7 +224,7 @@ servicio reiniciable y timer verificado; backups consistentes y restauración
 ejecutada; recursos controlados; sin puertos innecesarios; rollback probado.
 Despliegue real solo confirmado con evidencia y acceso autorizado a PizzaLab.
 
-## Commits y cierre de esta fase
+## Commits y cierre de Fase 1 (histórico)
 
 1. `docs: establish phase-one audit and implementation roadmap`: reglas, plan
    y auditoría con comandos/resultados reales, conservando decisiones previas.
@@ -226,3 +239,24 @@ no sobrescribir cambios concurrentes. Publicar únicamente la rama de esta fase.
 Para continuar después: integrar el PR, autorizar Fase 2, revisar términos y red,
 revalidar tableros y convertir los casos sintéticos anteriores en pruebas de
 contrato. No se necesita un token de Telegram, acceso a PizzaLab o Claude ahora.
+
+
+## Entrega de Fase 2 y preparación de Fase 3
+
+- Transporte GET compartido: 20 solicitudes/proveedor/ejecución, 15 s, tres
+  reintentos, jitter, Retry-After íntegro, circuit breaker y límites de cuerpo.
+- Adaptadores: Greenhouse/Ashby listado completo; Lever con skip/limit,
+  límite de páginas y señal explícita de resultados parciales.
+- Normalización: identidad estable por proveedor/tablero, campos desconocidos
+  explícitos, procedencia por campo, elegibilidad México siempre desconocida.
+- Configuración: JSON separado de perfiles, desactivado por defecto y sin URLs
+  arbitrarias; sin dependencias adicionales.
+- CLI y documentación de fuentes diferidas; tests sintéticos y CSV incluidos en CI.
+- Commits realizados y resultados finales se registran en el PR de esta fase.
+
+La Fase 3 no comenzó. Requiere integrar esta entrega y una autorización nueva:
+conservar los contratos de `NormalizedJob`, añadir persistencia y migraciones
+versionadas, claves únicas transaccionales y elegibilidad explicable. No tratar
+`listed` como prueba de contratación permitida o el score histórico como filtro
+excluyente. Antes de validación real, configurar acceso de red por el mecanismo
+autorizado de Cloud y revalidar los términos de cada tablero.

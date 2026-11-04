@@ -148,6 +148,21 @@ Validate the installation:
 jobsearch doctor
 ```
 
+## Public job discovery (opt-in)
+
+```bash
+jobsearch discover
+jobsearch discover --config examples/sources.example.json
+```
+
+Greenhouse, Lever and Ashby readers are disabled by default, including in the
+example. Copy the source config outside the repository, review the board's terms,
+and explicitly enable the boards you want to query. Discovery returns JSON with
+field provenance, unknown eligibility and per-board partial/error reports. It
+does not load profiles, write SQLite or submit applications. See the
+[configuration and safety guide (Spanish)](docs/JOB_SOURCES.md). Existing profiles
+remain JSON, and the desktop workflow is unchanged.
+
 ## Fit score
 
 The evaluator combines:

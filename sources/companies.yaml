@@ -1,4 +1,5 @@
-# Catálogo documental; no se implementaron conectores ni lectura automática.
+# Catálogo documental de Fase 1; Fase 2 usa configuración JSON separada.
+# Los adaptadores existen, pero este YAML no activa ni consulta fuentes.
 # Las regiones son candidatas de investigación, no permisos de contratación.
 schema_version: 1
 enabled: false
