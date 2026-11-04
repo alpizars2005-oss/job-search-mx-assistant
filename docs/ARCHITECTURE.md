@@ -23,7 +23,7 @@ The GUI and CLI do not duplicate business logic. Both call the evaluator and dat
 - Explainable scoring with visible evidence.
 
 
-## Descubrimiento público implementado en Fase 2
+## Descubrimiento público implementado en Fase 2 (contrato inicial)
 
 El paquete `sources` permanece separado de los modelos y la base del tracker:
 
@@ -39,3 +39,23 @@ evaluador y exportadores históricos conservan sus interfaces. La salida incluye
 procedencia por campo y evidencia regional sin interpretación; no conecta el
 score anterior a un filtro de elegibilidad. Transporte y reloj son inyectables
 para pruebas offline. Ver [contrato y operación](JOB_SOURCES.md).
+
+## Integración implementada en Fase 3
+
+- `eligibility.py`: requisitos excluyentes, negaciones y evidencia de campos o
+  fragmentos, conservando desconocidos y contradicciones.
+- `matching.py`: compatibilidad determinista `matching_v2` y explicación bilingüe.
+- `evaluator.py`: entrada compatible al motor nuevo; `evaluate_job_legacy`
+  conserva el algoritmo histórico como referencia explícita.
+- `migrations.py`: esquema 2, migración 1→2 transaccional, backup SQLite previo
+  y restauración hacia un destino nuevo; rechazo de versiones no soportadas.
+- `database.py`: tracker anterior, identidades, vacantes únicas y snapshots de
+  evaluaciones con versiones y huellas de contenido.
+
+El flujo opt-in `discover --save` conecta `NormalizedJob` directamente al motor
+y a SQLite, sin reducirlo al modelo manual ni perder procedencia. El snapshot
+de evaluación identifica el dato realmente evaluado aunque otro proceso actualice
+la vacante. `vacancies evaluate` reevalúa explícitamente con el perfil actual y
+añade una versión cuando cambian las entradas; no modifica resultados anteriores.
+La GUI y `analyze` usan el mismo motor y conservan el tracker manual. Detalles y
+límites en [SQLITE_MATCHING](SQLITE_MATCHING.md). No hay servicios nuevos.

@@ -9,7 +9,12 @@
 7. Actualiza el estado y las notas desde la pestaña Postulaciones o mediante la terminal.
 8. Exporta copias CSV o JSON regularmente.
 
-La puntuación usa reglas de texto; no confirma que cumplas los requisitos ni reemplaza la lectura de la vacante. Una negación como `not remote` todavía puede coincidir con la palabra `remote`. Revisa la modalidad, la ubicación y los requisitos obligatorios en la publicación original antes de decidir.
+La evaluación nueva `matching_v2` comprueba exclusiones antes del puntaje y distingue
+negaciones reconocidas como `not remote`. Un dato esencial desconocido produce
+`insufficient_information`; la puntuación de habilidades no confirma elegibilidad.
+Las reglas son acotadas: revisa la modalidad, contratación desde México y requisitos
+obligatorios en la publicación original. Los históricos conservan su resultado y
+algoritmo anterior. Consulta [operación y límites](SQLITE_MATCHING.md).
 
 ## Importar un perfil
 

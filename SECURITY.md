@@ -22,3 +22,20 @@ vigencia independiente ni elegibilidad desde México. Las pausas y cuotas son en
 memoria, no coordinan procesos diferentes. El timeout es por operación de socket,
 no un límite total contra respuestas lentas. No agregar un scheduler que omita
 esas limitaciones. Detalles en [JOB_SOURCES](docs/JOB_SOURCES.md).
+
+## SQLite y elegibilidad — Fase 3
+
+La migración valida la versión antes de cambiar el esquema y crea un backup
+consistente con la API SQLite; no copiar solo el archivo principal si hay WAL.
+Un fallo revierte la transacción; la recuperación manual restaura hacia un archivo
+nuevo y conserva el original. Las identidades y snapshots se escriben con
+restricciones únicas y transacciones. La API local no representa autorización de
+envío. Los snapshots y backups contienen perfiles privados completos: mantenerlos
+fuera del repositorio y aplicar permisos/ACL del sistema; no son cifrados.
+
+`matching_v2` procesa texto como datos y utiliza reglas deterministas acotadas.
+Ningún campo ATS ni puntaje confirma elegibilidad legal por sí solo; las afirmaciones
+del empleador son evidencia observada, no verificación jurídica independiente.
+La falta de información esencial conserva `insufficient_information`. La versión
+histórica `legacy_v1` se mantiene para lectura/reproducción, no para filtrar ofertas
+nuevas. Límites, operación y rollback en [SQLITE_MATCHING](docs/SQLITE_MATCHING.md).

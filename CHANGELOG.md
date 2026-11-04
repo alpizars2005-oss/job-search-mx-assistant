@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Agregar esquema SQLite 2, migración transaccional con backup previo, validación
+  de versiones, deduplicación persistente y snapshots de evaluaciones.
+- Evaluar elegibilidad antes de compatibilidad mediante `matching_v2`, seis
+  clasificaciones y evidencia reproducible; preservar históricos `legacy_v1`.
+- Conectar vacantes normalizadas mediante `discover --save` y comandos locales
+  `vacancies list/evaluate`; agregar backup/restauración sin sobrescritura.
+- Conservar hechos opcionales del perfil al editar desde GUI y mostrar explicaciones
+  bilingües; agregar pruebas offline de migración, concurrencia e interfaces.
+- Corregir el alcance de requisitos y sus menciones repetidas, permisos/exclusiones
+  de México, autorizaciones por país, experiencia específica y predicados negativos.
+
 - Agregar descubrimiento opt-in de Greenhouse, Lever y Ashby con normalización,
   procedencia y deduplicación en memoria, sin cambios a SQLite o perfiles.
 - Acotar GET por host/ruta, timeout, tamaño, solicitudes, reintentos, backoff con

@@ -15,3 +15,12 @@ Set `JOB_SEARCH_ASSISTANT_HOME` to use another directory.
 - Remove private details before sharing exports.
 - Store API keys in environment variables if optional providers are added later.
 - Review every generated document before submitting it.
+
+## Snapshots y respaldos de Fase 3
+
+`discover --save` y `vacancies evaluate` guardan el perfil utilizado junto con la
+vacante, evidencia y evaluación. Los hashes permiten reproducibilidad; no anonimizan
+esos snapshots. Cambiar `profile.json` no borra versiones anteriores de SQLite.
+Los backups incluyen el historial completo y deben protegerse como la base original.
+Mantenerlos fuera del checkout; revisar exportaciones antes de compartirlas.
+Sin `--save`, `discover` conserva su funcionamiento sin acceso al perfil o SQLite.

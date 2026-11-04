@@ -113,9 +113,31 @@ Sin configuración explícitamente habilitada no se hace ninguna solicitud.
 Para activar un tablero, copia el ejemplo fuera del repositorio, revisa sus
 condiciones y cambia solo su `enabled` a `true`. La salida JSON incluye
 procedencia, campos desconocidos y reportes de error/resultados parciales.
-No se presupone elegibilidad desde México ni se guardan resultados en SQLite.
+No se presupone elegibilidad desde México. Sin `--save` no se leen perfiles ni
+se guardan resultados en SQLite.
 Consulta [configuración y límites](docs/JOB_SOURCES.md). Los perfiles siguen
 usando JSON y la GUI conserva su flujo actual.
+
+## Persistencia y matching explicable
+
+```bash
+jobsearch discover --config /ruta/externa/sources.json --save
+jobsearch vacancies list
+jobsearch vacancies evaluate 1 --json
+jobsearch analyze examples/job-posting.txt --language es
+```
+
+Las vacantes normalizadas se deduplican por proveedor, tablero e ID. Las
+evaluaciones nuevas comprueban elegibilidad antes de clasificar la compatibilidad:
+`high_priority`, `medium_priority`, `manual_review`, `rejected`, `ineligible` o
+`insufficient_information`. Remoto o una ubicación México no prueban que el
+empleador pueda contratar desde México; los datos esenciales ausentes se muestran
+como desconocidos. El puntaje no es una probabilidad de contratación.
+
+SQLite migra del esquema 1 al 2 con backup consistente previo y transacción;
+los históricos conservan sus evaluaciones originales. Consulta
+[migración, backup, rollback, perfil y límites](docs/SQLITE_MATCHING.md) antes de
+actualizar una base importante. Guardar una vacante no crea ni envía una candidatura.
 
 ## Datos personales
 

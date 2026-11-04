@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tkinter as tk
 import webbrowser
+from dataclasses import replace
 from tkinter import messagebox, ttk
 
 from .config import (
@@ -15,12 +16,12 @@ from .config import (
 from .database import ApplicationDatabase
 from .evaluator import evaluate_job
 from .i18n import Translator
+from .matching import explain_evaluation
 from .models import (
+    VALID_STATUSES,
     ApplicationRecord,
-    CandidateProfile,
     EvaluationResult,
     JobPosting,
-    VALID_STATUSES,
 )
 from .search_queries import PORTAL_DOMAINS, build_browser_urls
 
@@ -257,13 +258,7 @@ class JobSearchApp(tk.Tk):
         result = evaluate_job(self.profile, job)
         self.current_job = job
         self.current_result = result
-        report = (
-            f"{self.t('score')}: {result.score}/100\n"
-            f"{self.t('recommendation')}: {result.recommendation}\n\n"
-            f"{self.t('matched_skills')}: {', '.join(result.matched_skills) or '-'}\n"
-            f"{self.t('missing_skills')}: {', '.join(result.missing_skills) or '-'}\n"
-            f"{self.t('risks')}: {', '.join(result.risks) or '-'}"
-        )
+        report = explain_evaluation(result, self.settings["language"])
         self.result_text.configure(state="normal")
         self.result_text.delete("1.0", "end")
         self.result_text.insert("1.0", report)
@@ -358,18 +353,15 @@ class JobSearchApp(tk.Tk):
 
     def save_profile_form(self) -> None:
         current = load_profile()
-        profile = CandidateProfile(
+        profile = replace(
+            current,
             name=self.profile_vars["name"].get().strip(),
             headline=self.profile_vars["headline"].get().strip(),
             location=self.profile_vars["location"].get().strip(),
-            languages=current.languages,
             skills=split_csv(self.profile_vars["skills"].get()),
             target_roles=split_csv(self.profile_vars["target_roles"].get()),
             preferred_locations=split_csv(self.profile_vars["preferred_locations"].get()),
             remote_only=bool(self.profile_vars["remote_only"].get()),
-            accepted_seniority=current.accepted_seniority,
-            deal_breakers=current.deal_breakers,
-            skill_aliases=current.skill_aliases,
         )
         save_profile(profile)
         self.profile = profile

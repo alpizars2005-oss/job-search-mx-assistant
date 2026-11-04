@@ -1,6 +1,6 @@
 import unittest
 
-from jobsearch_assistant.evaluator import evaluate_job, normalize
+from jobsearch_assistant.evaluator import evaluate_job, evaluate_job_legacy, normalize
 from jobsearch_assistant.models import CandidateProfile, JobPosting
 
 
@@ -42,8 +42,12 @@ class EvaluatorTests(unittest.TestCase):
     def test_suspicious_role_is_flagged(self) -> None:
         job = JobPosting(description="Telegram interview. Send a gift card to buy equipment.")
         result = evaluate_job(self.profile, job)
-        self.assertEqual(result.recommendation, "review_risk")
+        # New evaluations use the six Phase 3 categories; the historical algorithm stays reproducible.
+        self.assertEqual(result.recommendation, "ineligible")
         self.assertTrue(any(item.startswith("suspicious:") for item in result.risks))
+        historical = evaluate_job_legacy(self.profile, job)
+        self.assertEqual(historical.recommendation, "review_risk")
+        self.assertEqual(historical.algorithm_version, "legacy_v1")
 
 
 if __name__ == "__main__":
