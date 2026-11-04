@@ -55,7 +55,9 @@ permanece: usa un perfil predeterminado en memoria sin reescribir el archivo;
 verificarlo antes de guardar o evaluar una candidatura importante.
 
 Las condiciones reconocidas usan claves estables, entre ellas `security_clearance`,
-`weekend_work`, `travel`, `driver_license` y `equivalent_experience`. Las
+`weekend_work`, `travel`, `driver_license`, `degree_in_progress` y
+`equivalent_experience`. Una matrícula obligatoria desconocida no se confunde
+con la ausencia de un título terminado obligatorio. Las
 certificaciones específicas requieren su clave específica, no una afirmación
 genérica de que se posee alguna certificación. No declarar una condición como
 verdadera sin respaldo; las condiciones obligatorias no reconocidas requieren
@@ -86,6 +88,12 @@ no satisface `remote_only=true`. Negaciones como `not remote`, `US residents onl
 `no degree required` y requisitos deseables se distinguen de afirmaciones
 obligatorias en los patrones cubiertos. La ausencia de salario no excluye ni
 aporta puntos; no se inventan sueldo, moneda o conversiones.
+
+Los años totales del perfil no demuestran años en una tecnología o puesto
+específico. Ese requisito permanece pendiente cuando no existe evidencia de su
+alcance. Los permisos personales para trabajar se evalúan por país reconocido;
+un país o combinación de países no resuelta conserva un requisito desconocido.
+“We may hire” o una intención de contratar no confirman un permiso actual.
 
 El desglose de compatibilidad suma hasta 100 sin base de puntos automática:
 habilidades declaradas coincidentes hasta 35, rol objetivo 20, nivel junior 10,
@@ -128,6 +136,8 @@ representar otra entrada. Los hashes aportan trazabilidad, no anonimización.
 Las transacciones y restricciones únicas coordinan escritores SQLite locales;
 no se promete coordinación de cuotas HTTP entre procesos ni soporte de un sistema
 de archivos de red con bloqueos incompatibles con SQLite.
+Se conserva el modo de journal existente; una base nueva usa el predeterminado
+de SQLite. La inicialización no fuerza un cambio de journal en una base anterior.
 
 ## Backup, recuperación y rollback
 
@@ -178,10 +188,18 @@ reinicio, procedencia, elegibilidad adversarial, explicación determinista,
 históricos, CLI, métodos GUI sin display y CSV/JSON. La evidencia de comandos,
 conteos y CI Windows/Ubuntu del commit publicado se registra en el PR.
 
-Verificación local antes de la revisión independiente: Python 3.12.14, **147 pruebas
-unittest** y **147 pytest + 298 subtests**; Python 3.10.22, **147 unittest**;
+Verificación local tras las correcciones: Python 3.12.14, **159 pruebas
+unittest** y **159 pytest + 347 subtests**; Python 3.10.22, **159 unittest**;
 compilación, `pip check`, CLI help y preparación Linux headless: aprobados.
-Estos conteos son el corte previo a revisión; el PR conserva los resultados finales.
+El PR conserva los resultados remotos y el veredicto de revisión independiente.
+
+La revisión independiente identificó seis grupos de fallos de elegibilidad:
+excepciones de México, alcance de preferencias, permisos de otros países,
+condiciones adicionales ocultas, experiencia específica y negación de modalidad.
+Las regresiones también cubren menciones repetidas de un requisito y denegaciones
+de candidatura/disponibilidad. Se corrigieron sin debilitar aserciones anteriores.
+El algoritmo histórico se comparó adicionalmente con la versión integrada en
+Fase 2 para 90 combinaciones sintéticas, sin diferencias.
 
 Se intentó consultar `docs.python.org/3/library/sqlite3.html` y
 `sqlite.org/backup.html` desde este Cloud: ambos accesos devolvieron rechazo 403

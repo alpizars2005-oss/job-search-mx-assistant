@@ -56,7 +56,9 @@ Archivos: nuevos `eligibility.py`, `matching.py`; pruebas `test_eligibility.py`,
 - [x] Operaciones backup/restore seguras y documentación de rollback a versión anterior sobre copia nueva.
 - [x] Conservar campos nuevos al editar perfiles desde GUI; regresiones headless, CLI, CSV/JSON y registros históricos.
 - [x] Documentar migraciones, semántica, límites conservadores, comandos y aceptación; actualizar PLAN/README/SECURITY/CHANGELOG donde corresponda.
-- [ ] Confirmar revisión independiente y CI remoto Windows/Ubuntu antes de cerrar la fase. Suites locales Python 3.10/3.12, pytest y compilación completadas; resultados abajo.
+Para cerrar la fase es obligatorio confirmar revisión independiente y CI remoto
+Windows/Ubuntu. La evidencia y enlaces de esos resultados se mantienen en el PR,
+sin deducir su éxito de la suite local. Resultados locales abajo.
 
 ## Foco de revisión
 
@@ -66,10 +68,10 @@ Archivos: nuevos `eligibility.py`, `matching.py`; pruebas `test_eligibility.py`,
 - Una oferta normalizada actualizada no debe alterar el snapshot de una evaluación histórica.
 - GUI, exportaciones y perfiles antiguos deben conservar datos y etiquetas al adoptar el nuevo contrato.
 
-## Verificación local antes de revisión independiente
+## Verificación local tras las correcciones de revisión
 
-- Python 3.12.14: unittest **147 pruebas**; pytest **147 pruebas + 298 subtests**; pasan.
-- Python 3.10.22: unittest **147 pruebas**; pasan.
+- Python 3.12.14: unittest **159 pruebas**; pytest **159 pruebas + 347 subtests**; pasan.
+- Python 3.10.22: unittest **159 pruebas**; pasan.
 - `pip check`, compilación y `git diff --check`: pasan.
 - Persistencia/migración: **25 pruebas** incluyendo dos procesos y salida abrupta.
 - Regresiones de interfaz: flujo real de adaptadores con transporte sintético, opt-in,
@@ -77,3 +79,7 @@ Archivos: nuevos `eligibility.py`, `matching.py`; pruebas `test_eligibility.py`,
 - Detectado/corregido cierre de conexiones en pruebas para liberar archivos también
   en Windows; no se requiere display para los métodos GUI probados.
 - No se declara validación gráfica interactiva, red ATS o despliegue.
+- Seis grupos identificados por revisión independiente corregidos con regresiones;
+  se probaron además menciones repetidas, denegaciones de candidatura y permiso
+  aspiracional. Se conservan las aserciones anteriores. Reporte/veredicto en el PR.
+- Equivalencia del algoritmo `legacy_v1`: 90 combinaciones contra Fase 2 coinciden.
