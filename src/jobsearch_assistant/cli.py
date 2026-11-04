@@ -19,7 +19,7 @@ from .config import (
 from .database import ApplicationDatabase
 from .evaluator import evaluate_job
 from .exporters import export_csv, export_json
-from .models import ApplicationRecord, JobPosting, VALID_STATUSES
+from .models import VALID_STATUSES, ApplicationRecord, JobPosting
 from .search_queries import build_browser_urls, build_search_queries
 
 
@@ -39,6 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
     analyze.add_argument("--url", default="")
     analyze.add_argument("--save", action="store_true")
     analyze.add_argument("--json", action="store_true", dest="as_json")
+    analyze.add_argument("--language", choices=("es", "en"), help="Override the saved UI language")
 
     applications = sub.add_parser("applications", help="Manage tracked applications")
     app_sub = applications.add_subparsers(dest="application_command", required=True)
@@ -72,6 +73,22 @@ def build_parser() -> argparse.ArgumentParser:
     discover = sub.add_parser("discover", help="Read explicitly enabled public ATS job boards")
     discover.add_argument("--config", type=Path, help="Separate JSON source configuration")
     discover.add_argument("--language", choices=("es", "en"), default="es")
+    discover.add_argument("--save", action="store_true", help="Persist and evaluate discovered vacancies locally")
+
+    vacancies = sub.add_parser("vacancies", help="Read or evaluate stored source vacancies offline")
+    vacancy_sub = vacancies.add_subparsers(dest="vacancy_command", required=True)
+    vacancy_sub.add_parser("list", help="List normalized vacancies as JSON")
+    vacancy_evaluate = vacancy_sub.add_parser("evaluate", help="Evaluate a stored vacancy with the current profile")
+    vacancy_evaluate.add_argument("id", type=int)
+    vacancy_evaluate.add_argument("--json", action="store_true", dest="as_json")
+    vacancy_evaluate.add_argument("--language", choices=("es", "en"))
+
+    database = sub.add_parser("database", help="Create consistent backups or restore to a new file")
+    database_sub = database.add_subparsers(dest="database_command", required=True)
+    for name in ("backup", "restore"):
+        operation = database_sub.add_parser(name)
+        operation.add_argument("--source", type=Path, required=True)
+        operation.add_argument("--output", type=Path, required=True, help="Must not already exist")
 
     sub.add_parser("doctor", help="Check the local installation")
     sub.add_parser("gui", help="Open the desktop interface")
@@ -107,19 +124,18 @@ def command_analyze(args: argparse.Namespace) -> int:
     if args.as_json:
         print(json.dumps(result.to_dict(), ensure_ascii=False, indent=2))
     else:
-        print(f"Score: {result.score}/100")
-        print(f"Recommendation: {result.recommendation}")
-        print(f"Matched skills: {', '.join(result.matched_skills) or '-'}")
-        print(f"Missing skills: {', '.join(result.missing_skills) or '-'}")
-        print(f"Risks: {', '.join(result.risks) or '-'}")
+        from .matching import explain_evaluation
+
+        print(explain_evaluation(result, args.language or load_settings()["language"]))
     if args.save:
         database = _db()
         duplicate_id = database.find_duplicate(job)
         if duplicate_id is not None:
-            print(f"Duplicate application already exists: #{duplicate_id}")
+            print(f"Duplicate application already exists: #{duplicate_id}",
+                  file=sys.stderr if args.as_json else sys.stdout)
         else:
             record_id = database.add(ApplicationRecord(id=None, job=job, evaluation=result))
-            print(f"Saved application #{record_id}")
+            print(f"Saved application #{record_id}", file=sys.stderr if args.as_json else sys.stdout)
     return 0
 
 
@@ -232,16 +248,75 @@ def command_discover(args: argparse.Namespace) -> int:
         print(message, file=sys.stderr)
         return 2
     result = DiscoveryEngine(SafeHttpClient(policy)).run(configs)
-    print(json.dumps(result.to_dict(), ensure_ascii=True, indent=2))
+    payload = result.to_dict()
+    if args.save:
+        from .matching import evaluate_match
+
+        database, profile = _db(), load_profile()
+        saved = []
+        for job in result.jobs:
+            vacancy_id = database.upsert_vacancy(job)
+            evaluation = evaluate_match(profile, job)
+            evaluation_id = database.save_evaluation(vacancy_id, profile, evaluation, job=job)
+            saved.append({"vacancy_id": vacancy_id, "evaluation_id": evaluation_id,
+                          "evaluation": evaluation.to_dict()})
+        payload["saved"] = saved
+    print(json.dumps(payload, ensure_ascii=True, indent=2))
     return 1 if any(report.status in {"error", "paused", "partial"}
                     for report in result.reports) else 0
+
+
+def command_vacancies(args: argparse.Namespace) -> int:
+    from .matching import evaluate_match, explain_evaluation
+
+    database = _db()
+    if args.vacancy_command == "list":
+        print(json.dumps(database.list_vacancies(), ensure_ascii=True, indent=2))
+        return 0
+    job = database.get_vacancy(args.id)
+    if job is None:
+        print(f"Vacancy not found / Vacante no encontrada: {args.id}", file=sys.stderr)
+        return 2
+    profile = load_profile()
+    result = evaluate_match(profile, job)
+    evaluation_id = database.save_evaluation(args.id, profile, result, job=job)
+    if args.as_json:
+        print(json.dumps({"vacancy_id": args.id, "evaluation_id": evaluation_id,
+                          "evaluation": result.to_dict()}, ensure_ascii=True, indent=2))
+    else:
+        print(explain_evaluation(result, args.language or load_settings()["language"]))
+        print(f"Evaluation / Evaluación #{evaluation_id}")
+    return 0
+
+
+def command_database(args: argparse.Namespace) -> int:
+    from .migrations import backup_database, restore_backup
+
+    operation = backup_database if args.database_command == "backup" else restore_backup
+    output = operation(args.source, args.output)
+    print(output.resolve())
+    return 0
 
 
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     if args.command == "discover":
-        # Discovery does not read profiles, create private files or open SQLite.
-        raise SystemExit(command_discover(args))
+        # Only --save opts in to private profile/database access.
+        try:
+            code = command_discover(args)
+        except (OSError, ValueError, sqlite3.Error):
+            print("Local persistence failed / Falló la persistencia local", file=sys.stderr)
+            code = 2
+        raise SystemExit(code)
+    if args.command == "database":
+        # Never initialize/migrate the source just to back it up or restore it.
+        try:
+            code = command_database(args)
+        except (OSError, ValueError, sqlite3.Error):
+            print("Backup/restore failed; use a valid source and a new destination. / "
+                  "Falló el respaldo/restauración; usa un origen válido y un destino nuevo.", file=sys.stderr)
+            code = 2
+        raise SystemExit(code)
     ensure_workspace()
     if args.command == "init":
         code = command_init(args)
@@ -249,6 +324,12 @@ def main(argv: list[str] | None = None) -> None:
         code = command_analyze(args)
     elif args.command == "applications":
         code = command_applications(args)
+    elif args.command == "vacancies":
+        try:
+            code = command_vacancies(args)
+        except (OSError, ValueError, sqlite3.Error):
+            print("Local vacancy operation failed / Falló la operación local de vacantes", file=sys.stderr)
+            code = 2
     elif args.command == "profile":
         code = command_profile(args)
     elif args.command == "export":

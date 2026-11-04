@@ -35,7 +35,8 @@ class MatchingContractTests(unittest.TestCase):
                     self.assertNotIn('private-value', str(error.exception))
 
     def test_old_evaluation_defaults_to_legacy_without_reinterpreting_score(self):
-        result = EvaluationResult(**{'score': 91, 'recommendation': 'strong_fit', 'reasons': ['old']})
+        historical_payload = {'score': 91, 'recommendation': 'strong_fit', 'reasons': ['old']}
+        result = EvaluationResult(**historical_payload)
         self.assertEqual(result.algorithm_version, 'legacy_v1')
         self.assertEqual(result.score, 91)
         self.assertEqual(result.recommendation, 'strong_fit')

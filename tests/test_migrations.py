@@ -7,6 +7,7 @@ import tempfile
 import threading
 import unittest
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 
@@ -29,7 +30,7 @@ CREATE TABLE applications (
 
 
 def make_legacy(path):
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         connection.executescript(LEGACY_SCHEMA)
         for record_id, status, notes in ((3, 'saved', 'Primera nota'), (8, 'applied', 'Second note')):
             connection.execute(
@@ -42,12 +43,12 @@ def make_legacy(path):
 
 
 def contents(path):
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection:
         return connection.execute('SELECT * FROM applications ORDER BY id').fetchall()
 
 
 def version(path):
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection:
         return connection.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0]
 
 
@@ -80,7 +81,7 @@ class MigrationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'future.sqlite3'
             make_legacy(path)
-            with sqlite3.connect(path) as connection:
+            with closing(sqlite3.connect(path)) as connection, connection:
                 connection.execute("UPDATE meta SET value='999' WHERE key='schema_version'")
                 self.assertEqual(connection.execute('PRAGMA journal_mode').fetchone()[0], 'delete')
             before = path.read_bytes()
@@ -88,7 +89,7 @@ class MigrationTests(unittest.TestCase):
                 ApplicationDatabase(path)
             self.assertEqual(path.read_bytes(), before)
             self.assertEqual(list(Path(directory).glob('*.bak')), [])
-            with sqlite3.connect(path) as connection:
+            with closing(sqlite3.connect(path)) as connection:
                 self.assertEqual(connection.execute('PRAGMA journal_mode').fetchone()[0], 'delete')
 
     def test_historical_duplicate_identity_reuses_first_id_without_removing_rows(self):
@@ -126,7 +127,7 @@ class MigrationTests(unittest.TestCase):
                 ApplicationDatabase(path)
             self.assertEqual(version(path), '1')
             self.assertEqual(contents(path), before)
-            with sqlite3.connect(path) as connection:
+            with closing(sqlite3.connect(path)) as connection:
                 self.assertEqual(connection.execute(
                     "SELECT name FROM sqlite_master WHERE name='vacancies'"
                 ).fetchall(), [])
@@ -159,7 +160,7 @@ ApplicationDatabase(Path(sys.argv[1]))
             self.assertEqual(process.returncode, 37, process.stderr)
             self.assertEqual(version(path), '1')
             self.assertEqual(contents(path), before)
-            with sqlite3.connect(path) as connection:
+            with closing(sqlite3.connect(path)) as connection:
                 self.assertEqual(connection.execute(
                     "SELECT name FROM sqlite_master WHERE name='vacancies'"
                 ).fetchall(), [])
