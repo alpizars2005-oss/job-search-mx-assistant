@@ -137,7 +137,13 @@ no se hace pasar por fecha de publicación. Lever no promete publicación en el
 contrato consultado, por lo que `published_at` queda `null`.
 
 `work_mode` solo interpreta campos explícitos del ATS, no palabras de ubicación
-o descripción. Campos contradictorios quedan `unknown`. `Remote`, `Global`,
+o descripción. Según el [contrato de Ashby](https://developers.ashbyhq.com/docs/public-job-posting-api),
+`isRemote=true` incluye tanto `Remote` como `Hybrid`; `workplaceType` conserva
+la distinción `remote`/`hybrid`. `OnSite + false` produce `onsite`. Las
+combinaciones contradictorias (`Remote/Hybrid + false`, `OnSite + true`) y una
+modalidad desconocida quedan `unknown`: el booleano por sí solo no identifica
+trabajo totalmente remoto. Una modalidad explícita válida puede conservarse
+si falta el booleano. `Remote`, `Global`,
 `Americas`, `AMER` e incluso una ubicación México no prueban autorización
 contractual: `eligibility_evidence.status` permanece **unknown** para México,
 con observaciones y origen para una evaluación posterior.
@@ -186,8 +192,8 @@ python -m jobsearch_assistant discover
 python -m jobsearch_assistant discover --config examples/sources.example.json
 ```
 
-En este Cloud con Python 3.12.14, tras implementar CLI: **68 pruebas unittest**
-y **68 pruebas pytest + 182 subtests**, aprobadas. CSV se convirtió a TestCase,
+En este Cloud con Python 3.12.14, tras corregir la modalidad Ashby: **73 pruebas unittest**
+y **73 pruebas pytest + 205 subtests**, aprobadas. CSV se convirtió a TestCase,
 por lo que las dos pruebas previas ya se ejecutan en la matriz CI existente,
 sin añadir pytest como requisito de CI o una dependencia nueva de runtime.
 Los casos cubren todos los escenarios obligatorios: válido/incompleto/vacío,

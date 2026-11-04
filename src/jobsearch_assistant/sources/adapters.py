@@ -138,11 +138,12 @@ def _mode(value, remote=None) -> str:
     value = (_text(value, 100) or '').casefold()
     mode = {'remote': 'remote', 'hybrid': 'hybrid', 'onsite': 'onsite',
             'on-site': 'onsite'}.get(value, 'unknown')
-    if remote is True and mode not in {'remote', 'unknown'}:
+    # Ashby isRemote includes Hybrid; the flag alone cannot identify fully remote work.
+    if remote is True and mode == 'onsite':
         return 'unknown'
-    if remote is False and mode == 'remote':
+    if remote is False and mode in {'remote', 'hybrid'}:
         return 'unknown'
-    return 'remote' if mode == 'unknown' and remote is True else mode
+    return mode
 
 
 def _present_path(item: dict, path: str) -> bool:

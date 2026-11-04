@@ -260,3 +260,60 @@ class AdapterTests(unittest.TestCase):
                          job.provenance['work_mode'])
         job = self.discover('greenhouse', {'jobs': [dict(GH, title=None)]}).jobs[0]
         self.assertIn('#jobs[0].title', job.provenance['title'][0])  # Present null is observed.
+
+    def test_ashby_workplace_type_preserves_remote_hybrid_and_onsite(self):
+        for workplace, flag, expected in (
+            ('Remote', True, 'remote'),
+            ('Hybrid', True, 'hybrid'),
+            ('OnSite', False, 'onsite'),
+        ):
+            with self.subTest(workplace=workplace, is_remote=flag):
+                job = self.discover('ashby', {'jobs': [
+                    dict(ASHBY, workplaceType=workplace, isRemote=flag),
+                ]}).jobs[0]
+                self.assertEqual(job.work_mode, expected)
+                self.assertEqual(job.eligibility_evidence['status'], 'unknown')
+                self.assertEqual(job.eligibility_evidence['country_code'], 'MX')
+                self.assertEqual(job.eligibility_evidence['observations']['work_mode'], expected)
+
+    def test_ashby_contradictory_workplace_fields_remain_unknown(self):
+        for workplace, flag in (('Remote', False), ('Hybrid', False), ('OnSite', True)):
+            with self.subTest(workplace=workplace, is_remote=flag):
+                job = self.discover('ashby', {'jobs': [
+                    dict(ASHBY, workplaceType=workplace, isRemote=flag),
+                ]}).jobs[0]
+                self.assertEqual(job.work_mode, 'unknown')
+                self.assertEqual(job.eligibility_evidence['status'], 'unknown')
+
+    def test_ashby_remote_flag_alone_cannot_distinguish_remote_from_hybrid(self):
+        for workplace in (None, '', 'Unspecified'):
+            for flag in (None, True, False):
+                with self.subTest(workplace=workplace, is_remote=flag):
+                    job = self.discover('ashby', {'jobs': [
+                        dict(ASHBY, workplaceType=workplace, isRemote=flag),
+                    ]}).jobs[0]
+                    self.assertEqual(job.work_mode, 'unknown')
+                    self.assertEqual(job.eligibility_evidence['status'], 'unknown')
+        row = dict(ASHBY)
+        del row['workplaceType']
+        job = self.discover('ashby', {'jobs': [row]}).jobs[0]
+        self.assertEqual(job.work_mode, 'unknown')
+        self.assertEqual(job.provenance['work_mode'][0], 'missing:workplaceType')
+
+    def test_ashby_explicit_workplace_type_does_not_require_redundant_remote_flag(self):
+        for workplace, expected in (('Remote', 'remote'), ('Hybrid', 'hybrid'),
+                                    ('OnSite', 'onsite')):
+            with self.subTest(workplace=workplace):
+                row = dict(ASHBY, workplaceType=workplace)
+                del row['isRemote']
+                job = self.discover('ashby', {'jobs': [row]}).jobs[0]
+                self.assertEqual(job.work_mode, expected)
+
+    def test_ashby_invalid_remote_flag_types_still_reject_the_record(self):
+        for flag in ('true', 'false', 1, 0, []):
+            with self.subTest(is_remote=flag):
+                result = self.discover('ashby', {'jobs': [
+                    dict(ASHBY, workplaceType='Hybrid', isRemote=flag),
+                ]})
+                self.assertEqual(result.jobs, [])
+                self.assertEqual(result.reports[0].issues, ['invalid_record'])
