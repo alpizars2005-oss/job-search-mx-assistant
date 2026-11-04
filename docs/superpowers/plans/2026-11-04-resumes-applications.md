@@ -1,6 +1,6 @@
 # CV y candidaturas — plan de implementación de Fase 4
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** gestionar CV verificables y candidaturas locales con aprobaciones exactas de un solo uso.
 **Architecture:** extender el tracker existente con esquema 3 y un almacén privado de documentos inmutables. Núcleo y CLI comparten contratos; generación determinista y simulación sin sender.
@@ -69,44 +69,44 @@ Contrato de `CandidacyWorkflow(database:ApplicationDatabase, resumes:object)` en
 
 Files: nuevo workflow_contracts.py; tests/test_workflow_contracts.py; este plan/diseño.
 
-- [ ] Escribir pruebas de canonicalización, identidad/digest, flags estrictos y errores sin datos privados.
-- [ ] Ejecutar RED: pytest tests/test_workflow_contracts.py (módulo ausente).
-- [ ] Implementar helpers mínimos y ejecutar GREEN + suite previa.
-- [ ] Commit `feat: define safe local application workflow contracts`.
+- [x] Escribir pruebas de canonicalización, identidad/digest, flags estrictos y errores sin datos privados.
+- [x] Ejecutar RED: pytest tests/test_workflow_contracts.py (módulo ausente).
+- [x] Implementar helpers mínimos y ejecutar GREEN + suite previa.
+- [x] Commit `feat: define safe local application workflow contracts`.
 
 ### Task 2: Maestro, evidencia y versiones CV (implementador independiente)
 
 Files: nuevos resumes.py, resume_documents.py si hace falta; tests/test_resumes.py, test_resume_documents.py. No modificar otros archivos ni Git.
 Consumes contratos anteriores y NormalizedJob; produces ResumeStore API exacta arriba.
 
-- [ ] RED: maestro bilingüe incompleto/tipos/duplicados, evidencia inexistente/alterada, attested=false no se exporta, proyectos no se convierten en empleo.
-- [ ] GREEN: validación estricta, almacén privado content-addressed, atomicidad sin sobrescritura, hashes y trazabilidad inmutable.
-- [ ] RED/GREEN: versiones TXT/DOCX deterministas, adaptación por selección/orden de hechos, bytes y manifiestos/evidencia verificados, destino existente/rutas internas/symlinks rechazados.
-- [ ] Probar reinicio, dos procesos generando mismo CV y recuperación de publicación interrumpida; ninguna metadata válida referencia documento incompleto.
-- [ ] Ejecutar focused tests y devolver reporte, sin commit. Principal revisa y hace commit `feat: version evidence-backed bilingual resumes`.
+- [x] RED: maestro bilingüe incompleto/tipos/duplicados, evidencia inexistente/alterada, attested=false no se exporta, proyectos no se convierten en empleo.
+- [x] GREEN: validación estricta, almacén privado content-addressed, atomicidad sin sobrescritura, hashes y trazabilidad inmutable.
+- [x] RED/GREEN: versiones TXT/DOCX deterministas, adaptación por selección/orden de hechos, bytes y manifiestos/evidencia verificados, destino existente/rutas internas/symlinks rechazados.
+- [x] Probar reinicio, dos procesos generando mismo CV y recuperación de publicación interrumpida; ninguna metadata válida referencia documento incompleto.
+- [x] Ejecutar focused tests y devolver reporte, sin commit. Principal revisa y hace commit `feat: version evidence-backed bilingual resumes`.
 
 ### Task 3: SQLite, borradores, tracker y autorizaciones (implementador independiente)
 
 Files: migrations.py, database.py, nuevo candidacies.py; tests/test_migrations.py y nuevos test_candidacies.py/test_authorizations.py. No modificar modelos, CLI, GUI, CV o Git.
 Consumes contratos + interfaz resumes.verify_version; produces CandidacyWorkflow API exacta arriba.
 
-- [ ] RED/GREEN: esquema3, migraciones1→3 y2→3 aditivas/transaccionales, backup del origen previo, rollback y rechazo futuro; no cambiar históricos ni evaluaciones.
-- [ ] RED/GREEN: create dedup atómico, revisiones inmutables, historial, fechas/resultado/próximos pasos y transiciones gestionadas.
-- [ ] Estados tracker gestionado: saved→interested/applied/rejected/withdrawn; interested→saved/applied/rejected/withdrawn; applied→screening/interview/offer/rejected/withdrawn; screening→interview/offer/rejected/withdrawn; interview→offer/rejected/withdrawn; terminal offer/rejected/withdrawn no retroceden. Mismo estado es idempotente. Legacy sin candidacy conserva API anterior.
-- [ ] RED/GREEN: revisión→aprobación específica→simulación de un uso, identidad empresa/vacante/versión/hash/texto y revisión, invalidación tras cambios o integridad fallida persistida antes del error.
-- [ ] `ApplicationDatabase.update` valida transiciones e invalida permisos gestionados al salir de saved/interested, incluso desde CLI/GUI anteriores; nunca llama a red. Refactor privado para INSERT atómico en misma transacción en vez de conexiones anidadas.
-- [ ] Probar dos procesos, reinicio, abrupt exit/recovery, intentos sin revisión/digest incorrecto/consumo repetido, política insegura y applied sin envío.
-- [ ] Actualizar expectativas del último esquema en pruebas anteriores sin debilitar preservación; devolver focused resultados y reporte sin commits. Principal commit `feat: track reviewed drafts and single-use authorizations`.
+- [x] RED/GREEN: esquema3, migraciones1→3 y2→3 aditivas/transaccionales, backup del origen previo, rollback y rechazo futuro; no cambiar históricos ni evaluaciones.
+- [x] RED/GREEN: create dedup atómico, revisiones inmutables, historial, fechas/resultado/próximos pasos y transiciones gestionadas.
+- [x] Estados tracker gestionado: saved→interested/applied/rejected/withdrawn; interested→saved/applied/rejected/withdrawn; applied→screening/interview/offer/rejected/withdrawn; screening→interview/offer/rejected/withdrawn; interview→offer/rejected/withdrawn; terminal offer/rejected/withdrawn no retroceden. Mismo estado es idempotente. Legacy sin candidacy conserva API anterior.
+- [x] RED/GREEN: revisión→aprobación específica→simulación de un uso, identidad empresa/vacante/versión/hash/texto y revisión, invalidación tras cambios o integridad fallida persistida antes del error.
+- [x] `ApplicationDatabase.update` valida transiciones e invalida permisos gestionados al salir de saved/interested, incluso desde CLI/GUI anteriores; nunca llama a red. Refactor privado para INSERT atómico en misma transacción en vez de conexiones anidadas.
+- [x] Probar dos procesos, reinicio, abrupt exit/recovery, intentos sin revisión/digest incorrecto/consumo repetido, política insegura y applied sin envío.
+- [x] Actualizar expectativas del último esquema en pruebas anteriores sin debilitar preservación; devolver focused resultados y reporte sin commits. Principal commit `feat: track reviewed drafts and single-use authorizations`.
 
 ### Task 4: Integración CLI/GUI, privacidad y documentación (principal)
 
 Files: cli.py o nuevo workflow_cli.py, gui.py, documentación/ejemplos sintéticos y pruebas test_phase4_interfaces.py.
 
-- [ ] RED/GREEN: `resumes import/list/tailor/verify/export`, `candidacies create/list/show/edit/review/approve/simulate/update/history`, flags explícitos con errores bilingües redactados.
-- [ ] Importación manual explícita `vacancies import FILE` del JSON JobPosting para uso offline; no seguir URLs. Generar borrador de texto solo con datos del maestro/selecciones verificadas y datos observados de empresa/vacante.
-- [ ] Preservar salida de comandos/exportaciones previos y campos GUI; mostrar error de transición sin traceback con datos privados. Headless regression real con ResumeStore + CandidacyWorkflow y SQLite.
-- [ ] Documentar esquema3 y rollback hacia copia nueva, evidencia/atestación, formatos/límites ATS, estados, flags, datos privados, comandos y checklist manual; ajustar PLAN/README/SECURITY/PRIVACY/prompts afectados.
-- [ ] Commit `feat: expose private resume and candidacy workflows` y documentación atómica.
+- [x] RED/GREEN: `resumes import/list/tailor/verify/export`, `candidacies create/list/show/edit/review/approve/simulate/update/history`, flags explícitos con errores bilingües redactados.
+- [x] Importación manual explícita `vacancies import FILE` del JSON JobPosting para uso offline; no seguir URLs. Generar borrador de texto solo con datos del maestro/selecciones verificadas y datos observados de empresa/vacante.
+- [x] Preservar salida de comandos/exportaciones previos y campos GUI; mostrar error de transición sin traceback con datos privados. Headless regression real con ResumeStore + CandidacyWorkflow y SQLite.
+- [x] Documentar esquema3 y rollback hacia copia nueva, evidencia/atestación, formatos/límites ATS, estados, flags, datos privados, comandos y checklist manual; ajustar PLAN/README/SECURITY/PRIVACY/prompts afectados.
+- [x] Commit `feat: expose private resume and candidacy workflows` y documentación atómica.
 
 ### Task 5: Revisión, validación y PR (principal)
 

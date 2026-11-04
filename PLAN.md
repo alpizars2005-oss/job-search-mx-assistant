@@ -3,14 +3,27 @@
 Fecha de auditoría de Fase 1: 2026-11-04. Base histórica: `main` en
 `54c7c9ee21fd88625386799782f40da8b6882a5d`.
 
-**Fase actualmente autorizada: Fase 3, SQLite y matching explicable.**
-La Fase 1 fue integrada en el PR #6 y la Fase 2 en el PR #7.
-Base de Fase 3: `5932de7baa9df938d52fcdd6888ed927625bc49a`.
-Las Fases 4–6 siguen pendientes y fuera de esta entrega.
+**Fase actualmente autorizada: Fase 4, CV, candidaturas y tracker.**
+Las Fases 1, 2 y 3 fueron integradas en los PR #6, #7 y #8.
+Base de Fase 4: `67c10918295a2b30abe9ffd9d5b03f3ec5f24f16`, con CI de main
+aprobado en seis combinaciones (ejecución 69). Fases 5–6 pendientes y fuera de alcance.
 Cada fase termina en un PR a `main`; no fusionar automáticamente ni comenzar
 una fase dependiente hasta integrar su requisito y obtener autorización de alcance.
 
-## Estado de Fase 3
+## Estado de Fase 4
+
+Almacén privado de maestros ES/EN con evidencia y atestación, versiones TXT/DOCX
+direccionadas por contenido y adaptación mediante selección de hechos. Borradores
+y tracker reutilizan SQLite esquema 3, con historial inmutable, revisión exacta y
+autorizaciones consumibles una vez mediante simulación local. No hay sender.
+Migración desde 1/2 con backup previo, rollback y revocación de capacidades al
+restaurar un backup. Nuevos flujos CLI, preservación del tracker GUI y políticas
+DRY_RUN/AUTO_SUBMIT verificadas. Operación y límites en
+[CV y candidaturas](docs/RESUMES_CANDIDACIES.md); diseño y pasos en
+[plan de Fase 4](docs/superpowers/plans/2026-11-04-resumes-applications.md).
+La evidencia final de revisión, pruebas y CI se registra en su PR independiente.
+
+## Estado de Fase 3 (histórico, integrada en PR #8)
 
 Contratos compatibles con perfiles JSON anteriores; esquema 2 con migración
 transaccional, backup previo, identidades únicas y evaluaciones con snapshots.
@@ -186,7 +199,7 @@ reproducible, límites/reintentos/circuit breaker probados, ningún scraping
 prohibido y contenido externo tratado como datos. Conservar pruebas actuales.
 Una consulta real solo se reportará validada si se ejecuta con acceso permitido.
 
-### Fase 3 — SQLite y matching (esta entrega)
+### Fase 3 — SQLite y matching (integrada, PR #8)
 
 Requisito comprobado: PR #7 integrado y misión de Fase 3 autorizada. Commits: contratos,
 migraciones versionadas y unicidad, persistencia de evidencia, elegibilidad
@@ -200,9 +213,10 @@ salario desconocido e información esencial faltante. Las seis clasificaciones
 objetivo de `AGENTS.md` tienen precedencia explícita; no reinterpretar resultados
 históricos sin versionar el algoritmo.
 
-### Fase 4 — Candidaturas y tracker (pendiente)
+### Fase 4 — Candidaturas y tracker (esta entrega)
 
-Requiere Fase 3 integrada. Commits: versiones de CV con evidencia, borradores y
+Requisito comprobado: PR #8 integrado y CI de main satisfactorio. Commits: contratos,
+versiones de CV con evidencia, borradores y
 exportación, estados/transiciones y aprobación específica vinculada al contenido.
 
 Aceptación: datos sintéticos, CV/candidatura trazables, ningún dato inventado,
@@ -269,9 +283,19 @@ versionadas, claves únicas transaccionales y elegibilidad explicable. No tratar
 excluyente. Antes de validación real, configurar acceso de red por el mecanismo
 autorizado de Cloud y revalidar los términos de cada tablero.
 
-## Continuación después de Fase 3
+## Continuación después de Fase 3 (histórico)
 
 Integrar su PR tras revisión y autorizar Fase 4 antes de cambiar código dependiente.
 Reutilizar identidades y snapshots para versiones de CV/borradores; una evaluación
 o estado local jamás autoriza un envío. No hay scheduler, Telegram, integración de
 Claude, despliegue ni cambios en PizzaLab en Fase 3.
+
+## Continuación después de Fase 4
+
+Integrar su PR tras revisión y autorizar Fase 5 antes de cambios dependientes.
+Reutilizar el workflow exacto y la política segura; los recibos de simulación no
+son envíos ni autorizaciones para otra versión. Antes de cualquier sender futuro,
+definir transporte, entrega de bytes aprobados, recuperación y deduplicación de
+efectos externos; esta fase no resuelve una transacción distribuida con un ATS.
+No activar Telegram, Claude o un scheduler por consecuencia de guardar borradores.
+No hay despliegue ni cambios en PizzaLab.

@@ -1,5 +1,9 @@
 # User Guide
 
+La Fase 4 incorpora CV privados con evidencia y borradores revisables en CLI,
+conservando el tracker de escritorio. Ver [operación y límites](RESUMES_CANDIDACIES.md).
+La aprobación solo permite una simulación local y no transmite documentos.
+
 1. Run `jobsearch init`.
 2. Open `jobsearch-gui`.
 3. Complete the Profile tab.

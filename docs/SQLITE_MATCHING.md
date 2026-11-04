@@ -1,5 +1,10 @@
 # SQLite y matching explicable — Fase 3
 
+Este documento conserva el contrato de entrega de Fase 3, integrada en PR #8.
+Fase 4 amplía SQLite a esquema 3 y agrega documentos/candidaturas; consultar
+[backup conjunto, rollback y autorizaciones](RESUMES_CANDIDACIES.md). El matching
+`matching_v2` y los datos históricos descritos aquí se conservan.
+
 Base: PR #7 integrado en `main`, commit `5932de7baa9df938d52fcdd6888ed927625bc49a`.
 Se extiende el núcleo existente, sin dependencias de runtime nuevas, servicios,
 envíos ni despliegues. Las reglas son una ayuda de revisión, no una certificación

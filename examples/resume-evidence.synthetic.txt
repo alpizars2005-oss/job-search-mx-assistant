@@ -1,0 +1,2 @@
+Synthetic fixture only. This file is not proof of real employment, certification,
+or professional experience. It demonstrates local evidence hashing for tests.

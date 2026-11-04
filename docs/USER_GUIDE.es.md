@@ -1,5 +1,9 @@
 # Guía de usuario
 
+Para maestros verificables, CV TXT/DOCX, borradores, revisión y simulación local,
+consulta [CV y candidaturas](RESUMES_CANDIDACIES.md). Las funciones nuevas usan la
+CLI y el tracker GUI conserva su flujo de seguimiento. Applied no envía información.
+
 1. Ejecuta `jobsearch init --language es`.
 2. Abre `jobsearch-gui`.
 3. Completa la pestaña Perfil.

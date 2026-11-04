@@ -24,3 +24,18 @@ esos snapshots. Cambiar `profile.json` no borra versiones anteriores de SQLite.
 Los backups incluyen el historial completo y deben protegerse como la base original.
 Mantenerlos fuera del checkout; revisar exportaciones antes de compartirlas.
 Sin `--save`, `discover` conserva su funcionamiento sin acceso al perfil o SQLite.
+
+## Documentos y aprobaciones — Fase 4
+
+El almacén `resumes/` contiene identidad/contacto, evidencia, maestros, documentos
+y manifiestos; el tracker guarda borradores y snapshots aprobados. No existe
+telemetría o sender. Los errores y listados por defecto no imprimen el CV completo;
+`show`, `review` y exportación sí muestran/escriben datos privados a petición expresa.
+No compartir esas salidas como logs públicos.
+
+Los documentos y SQLite no están cifrados. Proteger también los backups, revisar
+ACL en Windows y conservar `resumes/` junto a SQLite al recuperar. La restauración
+oficial revoca autorizaciones activas; no copiar una base antigua para reactivarlas.
+No usar una carpeta dentro del checkout como almacén privado. Las evidencias se
+verifican por hash y atestación humana; su verdad no se certifica automáticamente.
+Detalles en [CV y candidaturas](RESUMES_CANDIDACIES.md).
