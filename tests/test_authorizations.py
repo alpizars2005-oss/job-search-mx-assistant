@@ -249,3 +249,119 @@ workflow.simulate(sys.argv[4])
         self.assertEqual(self.workflow.history(candidacy_id), history)
         with self.assertRaises(WorkflowError):
             self.workflow.approve(candidacy_id, reviewed['review_digest'])
+
+    def test_restore_revokes_old_active_capability_and_requires_fresh_revision_review(self):
+        from jobsearch_assistant.migrations import backup_database, restore_backup
+        candidacy_id = self.create()
+        old_auth = self.authorize(candidacy_id)
+        original_review = self.workflow.get(candidacy_id)['review_digest']
+        old_history = self.workflow.history(candidacy_id)
+        backup = self.root / 'active-backup.sqlite3'
+        restored = self.root / 'restored.sqlite3'
+        backup_database(self.database.path, backup)
+        self.workflow.simulate(old_auth)
+        restore_backup(backup, restored)
+        workflow = CandidacyWorkflow(ApplicationDatabase(restored), self.resumes)
+        with self.assertRaises(WorkflowError):
+            workflow.simulate(old_auth)
+        result = workflow.get(candidacy_id)
+        self.assertEqual(result['revision'], 2)
+        self.assertEqual(result['workflow_state'], 'draft')
+        self.assertIsNone(result['review_digest'])
+        with self.assertRaises(WorkflowError):
+            workflow.approve(candidacy_id, original_review)
+        reviewed = workflow.review(candidacy_id)
+        new_auth = workflow.approve(candidacy_id, reviewed['review_digest'])
+        self.assertNotEqual(new_auth, old_auth)
+        self.assertIs(workflow.simulate(new_auth)['submitted'], False)
+        # The private backup and terminal original keep their original states.
+        backup_workflow = CandidacyWorkflow(ApplicationDatabase(backup), self.resumes)
+        self.assertEqual(backup_workflow.history(candidacy_id), old_history)
+        original_auths = [item for item in self.workflow.history(candidacy_id) if item['type'] == 'authorization']
+        self.assertEqual(original_auths[-1]['status'], 'consumed')
+
+    def test_restore_never_publishes_live_authorization_and_is_atomic_on_failure(self):
+        import sqlite3
+        from contextlib import closing
+        from jobsearch_assistant import migrations
+        candidacy_id = self.create()
+        auth = self.authorize(candidacy_id)
+        backup = self.root / 'active-backup.sqlite3'
+        migrations.backup_database(self.database.path, backup)
+        destination = self.root / 'restored.sqlite3'
+        original_guard = migrations._invalidate_restored_workflow
+        def interrupted(connection):
+            original_guard(connection)
+            raise RuntimeError('Synthetic restore interruption')
+        with patch.object(migrations, '_invalidate_restored_workflow', side_effect=interrupted):
+            with self.assertRaises(RuntimeError):
+                migrations.restore_backup(backup, destination)
+        self.assertFalse(destination.exists())
+        self.assertEqual(list(self.root.glob('.*.restore-*')), [])
+        with closing(sqlite3.connect(backup)) as connection:
+            self.assertEqual(connection.execute('SELECT status FROM candidacy_authorizations WHERE authorization_id=?',
+                                               (auth,)).fetchone()[0], 'active')
+        real_link = os.link
+        def guarded_publish(staging, target, *args, **kwargs):
+            self.assertFalse(destination.exists())
+            with closing(sqlite3.connect(staging)) as connection:
+                self.assertEqual(connection.execute("SELECT COUNT(*) FROM candidacy_authorizations WHERE status='active'").fetchone()[0], 0)
+                self.assertEqual(connection.execute('SELECT revision, workflow_state, review_digest FROM candidacies').fetchone(),
+                                 (2, 'draft', None))
+            return real_link(staging, target, *args, **kwargs)
+        with patch.object(migrations.os, 'link', side_effect=guarded_publish) as publication:
+            migrations.restore_backup(backup, destination)
+        publication.assert_called_once()
+        self.assertEqual(list(self.root.glob('.*.restore-*')), [])
+        with self.assertRaises(WorkflowError):
+            CandidacyWorkflow(ApplicationDatabase(destination), self.resumes).simulate(auth)
+
+    def test_restore_preserves_terminal_authorizations_and_publish_failures_leave_no_copy(self):
+        import sqlite3
+        from contextlib import closing
+        from jobsearch_assistant import migrations
+        states = {}
+        for index, state in enumerate(('active', 'consumed', 'invalidated')):
+            job = replace(self.job, source_job_id='restore-' + state,
+                          url='https://example.test/restore-' + state)
+            vacancy_id = self.database.upsert_vacancy(job)
+            version = self.resumes.create_version(job)
+            candidacy_id = self.workflow.create(vacancy_id, version['version_id'], 'Synthetic restore text')
+            authorization = self.authorize(candidacy_id)
+            if state == 'consumed':
+                self.workflow.simulate(authorization)
+            elif state == 'invalidated':
+                self.workflow.edit(candidacy_id, content='Changed restore text')
+            states[authorization] = state
+        backup = self.root / 'restore-states.sqlite3'
+        destination = self.root / 'restored-states.sqlite3'
+        migrations.backup_database(self.database.path, backup)
+        with patch.object(migrations.os, 'link', side_effect=OSError('Synthetic publication failure')):
+            with self.assertRaises(OSError):
+                migrations.restore_backup(backup, destination)
+        self.assertFalse(destination.exists())
+        self.assertEqual(list(self.root.glob('.*.restore-*')), [])
+        for path in (self.database.path, backup):
+            with closing(sqlite3.connect(path)) as connection:
+                self.assertEqual(dict(connection.execute('SELECT authorization_id, status FROM candidacy_authorizations')), states)
+        migrations.restore_backup(backup, destination)
+        expected = {key: 'invalidated' if value == 'active' else value for key, value in states.items()}
+        with closing(sqlite3.connect(destination)) as connection:
+            self.assertEqual(dict(connection.execute('SELECT authorization_id, status FROM candidacy_authorizations')), expected)
+
+    def test_restore_publication_race_preserves_destination_created_by_other_process(self):
+        from jobsearch_assistant import migrations
+        candidacy_id = self.create()
+        self.authorize(candidacy_id)
+        backup = self.root / 'restore-race.sqlite3'
+        destination = self.root / 'restored-race.sqlite3'
+        migrations.backup_database(self.database.path, backup)
+        real_link = os.link
+        def conflicting_publish(staging, target, *args, **kwargs):
+            destination.write_bytes(b'Synthetic existing destination')
+            return real_link(staging, target, *args, **kwargs)
+        with patch.object(migrations.os, 'link', side_effect=conflicting_publish):
+            with self.assertRaises(FileExistsError):
+                migrations.restore_backup(backup, destination)
+        self.assertEqual(destination.read_bytes(), b'Synthetic existing destination')
+        self.assertEqual(list(self.root.glob('.*.restore-*')), [])

@@ -226,6 +226,7 @@ class CandidacyWorkflow:
 
     def history(self, candidacy_id: int) -> list[dict[str, Any]]:
         with self.database._connection() as connection:
+            connection.execute('BEGIN')
             self._row(connection, candidacy_id)
             result = []
             for table, kind in (('candidacy_revisions', 'revision'), ('candidacy_events', 'event'),
@@ -298,10 +299,7 @@ class CandidacyWorkflow:
                 UPDATE candidacies SET vacancy_id=?, resume_version_id=?, content=?, company=?,
                     revision=revision+1, workflow_state='draft', review_digest=NULL, updated_at=? WHERE id=?
             ''', (new_vacancy, new_version, new_content, job.company, timestamp, candidacy_id))
-            connection.execute('''
-                UPDATE applications SET title=?, company=?, location=?, url=?, description=?, updated_at=? WHERE id=?
-            ''', (job.title or 'Untitled role', job.company, ', '.join(job.locations),
-                  job.url or '', job.description or '', timestamp, candidacy['application_id']))
+            self._update_application_job(connection, candidacy, job, new_vacancy, timestamp)
             updated = self._row(connection, candidacy_id)
             snapshot = self._snapshot(updated, job, metadata)
             connection.execute('''
@@ -310,6 +308,35 @@ class CandidacyWorkflow:
             ''', (candidacy_id, updated['revision'], canonical_json(snapshot), timestamp))
             self.database._event(connection, updated, 'edited', snapshot)
             return True
+
+    def _update_application_job(self, connection: sqlite3.Connection, candidacy: sqlite3.Row,
+                                job: NormalizedJob, vacancy_id: int, timestamp: str) -> None:
+        application = connection.execute('SELECT * FROM applications WHERE id=?',
+                                         (candidacy['application_id'],)).fetchone()
+        revision = connection.execute("""
+            SELECT snapshot_json FROM candidacy_revisions WHERE candidacy_id=? AND revision=?
+        """, (candidacy['id'], candidacy['revision'])).fetchone()
+        previous = json.loads(revision['snapshot_json'])
+        fields = ('title', 'company', 'location', 'url', 'description')
+        values = (job.title or 'Untitled role', job.company, ', '.join(job.locations),
+                  job.url or '', job.description or '')
+        changed = (vacancy_id != candidacy['vacancy_id']
+                   or vacancy_digest(job) != previous['vacancy_digest']
+                   or values != tuple(application[field] for field in fields))
+        if changed:
+            # Preserve exact old JSON and the job it evaluated before replacing
+            # either. CV/content-only edits retain the existing evaluation.
+            self.database._event(connection, candidacy, 'application_snapshot_preserved',
+                                 {'application': dict(application), 'vacancy_id': candidacy['vacancy_id'],
+                                  'vacancy': previous['vacancy']})
+            pending = EvaluationResult(0, 'insufficient_information', algorithm_version='unevaluated')
+            connection.execute("""
+                UPDATE applications SET score=?, recommendation=?, evaluation_json=? WHERE id=?
+            """, (pending.score, pending.recommendation, canonical_json(pending.to_dict()),
+                  candidacy['application_id']))
+        connection.execute("""
+            UPDATE applications SET title=?, company=?, location=?, url=?, description=?, updated_at=? WHERE id=?
+        """, (*values, timestamp, candidacy['application_id']))
 
     def review(self, candidacy_id: int) -> dict[str, Any]:
         require_dry_run()

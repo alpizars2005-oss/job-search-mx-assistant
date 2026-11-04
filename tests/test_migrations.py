@@ -297,6 +297,30 @@ ApplicationDatabase(Path(sys.argv[1]))
             finally:
                 connection.close()
 
+    def test_restore_schema_two_without_migration_and_future_schema_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / 'source.sqlite3'
+            make_legacy(source)
+            with closing(sqlite3.connect(source)) as connection, connection:
+                migrations._migrate_v1_to_v2(connection)
+                connection.execute("UPDATE meta SET value='2' WHERE key='schema_version'")
+            restored = Path(directory) / 'restored.sqlite3'
+            before = contents(source)
+            migrations.restore_backup(source, restored)
+            self.assertEqual(version(restored), '2')
+            self.assertEqual(contents(restored), before)
+            with closing(sqlite3.connect(restored)) as connection:
+                self.assertEqual(connection.execute("SELECT name FROM sqlite_master WHERE name='candidacies'").fetchall(), [])
+            with closing(sqlite3.connect(source)) as connection, connection:
+                connection.execute("UPDATE meta SET value='999' WHERE key='schema_version'")
+            original_bytes = source.read_bytes()
+            rejected = Path(directory) / 'rejected.sqlite3'
+            with self.assertRaises(ValueError):
+                migrations.restore_backup(source, rejected)
+            self.assertFalse(rejected.exists())
+            self.assertEqual(source.read_bytes(), original_bytes)
+            self.assertEqual(list(Path(directory).glob('.*.restore-*')), [])
+
     def test_failed_backup_removes_only_its_own_new_destination(self):
         with tempfile.TemporaryDirectory() as directory:
             invalid = Path(directory) / 'not-sqlite'

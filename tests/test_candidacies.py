@@ -2,12 +2,12 @@
 import copy
 import hashlib
 import json
+import sqlite3
 import tempfile
 import os
 import subprocess
 import sys
 import unittest
-from contextlib import closing
 from dataclasses import replace
 from datetime import date, timedelta
 from pathlib import Path
@@ -267,6 +267,91 @@ print(workflow.create(int(sys.argv[4]), sys.argv[5], 'Synthetic cover text'))
             self.workflow.simulate(auth)
         self.assertEqual(self.database.find_duplicate(JobPosting(title=other.title, company=other.company,
                                                                url=other.url)), result['application_id'])
+
+    def test_retarget_and_source_repair_preserve_previous_evaluation_without_reattribution(self):
+        for source_repair in (False, True):
+            with self.subTest(source_repair=source_repair):
+                job = synthetic_job(source_job_id='repair' if source_repair else 'retarget',
+                                    url='https://example.test/repair' if source_repair else 'https://example.test/retarget')
+                vacancy_id = self.database.upsert_vacancy(job)
+                old_evaluation = EvaluationResult(95, 'high_priority', algorithm_version='matching_v2',
+                                                 reasons=['Only Original Company role fits'])
+                application_id = self.database.add(ApplicationRecord(None,
+                    JobPosting(title=job.title, company=job.company, url=job.url, description=job.description,
+                               location=', '.join(job.locations)), old_evaluation))
+                old_version = self.resumes.create_version(job)
+                candidacy_id = self.workflow.create(vacancy_id, old_version['version_id'], 'Synthetic text')
+                with self.database._connection() as connection:
+                    previous = dict(connection.execute('SELECT * FROM applications WHERE id=?', (application_id,)).fetchone())
+                changed = replace(job, company='Different Synthetic Company', title='Senior Other Role',
+                                  description='Different requirements',
+                                  source_job_id=job.source_job_id if source_repair else 'new-retarget',
+                                  url=job.url if source_repair else 'https://example.test/new-retarget')
+                changed_id = self.database.upsert_vacancy(changed)
+                new_version = self.resumes.create_version(changed)
+                self.workflow.edit(candidacy_id, vacancy_id=changed_id, resume_version_id=new_version['version_id'])
+                result = next(item for item in self.database.list() if item.id == application_id)
+                self.assertEqual(result.job.company, changed.company)
+                self.assertEqual(result.evaluation.recommendation, 'insufficient_information')
+                self.assertEqual(result.evaluation.score, 0)
+                self.assertNotIn('Only Original Company role fits', result.evaluation.reasons)
+                preserved = [item for item in self.workflow.history(candidacy_id)
+                             if item.get('event_type') == 'application_snapshot_preserved']
+                self.assertEqual(preserved[-1]['snapshot']['application'], previous)
+
+    def test_content_only_edit_preserves_current_evaluation_and_failed_retarget_is_atomic(self):
+        evaluation = EvaluationResult(95, 'high_priority', reasons=['Synthetic verified match'])
+        application_id = self.database.add(ApplicationRecord(None,
+            JobPosting(title=self.job.title, company=self.job.company, url=self.job.url,
+                       description=self.job.description, location=', '.join(self.job.locations)), evaluation))
+        candidacy_id = self.create()
+        self.workflow.edit(candidacy_id, content='Content-only update')
+        self.assertEqual(self.database.list()[0].evaluation.to_dict(), evaluation.to_dict())
+        self.assertFalse(any(item.get('event_type') == 'application_snapshot_preserved'
+                             for item in self.workflow.history(candidacy_id)))
+        auth = self.authorize(candidacy_id)
+        before = self.workflow.history(candidacy_id)
+        other = replace(self.job, source_job_id='atomic-retarget', company='Other Synthetic',
+                        url='https://example.test/atomic-retarget')
+        vacancy_id = self.database.upsert_vacancy(other)
+        version = self.resumes.create_version(other)
+        with self.database._connection() as connection:
+            connection.execute("""CREATE TRIGGER synthetic_retarget_failure
+                BEFORE INSERT ON candidacy_revisions WHEN NEW.revision=3
+                BEGIN SELECT RAISE(ABORT, 'Synthetic retarget failure'); END""")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.workflow.edit(candidacy_id, vacancy_id=vacancy_id, resume_version_id=version['version_id'])
+        result = next(item for item in self.database.list() if item.id == application_id)
+        self.assertEqual(result.job.company, self.job.company)
+        self.assertEqual(result.evaluation.to_dict(), evaluation.to_dict())
+        self.assertEqual(self.workflow.history(candidacy_id), before)
+        self.assertIs(self.workflow.simulate(auth)['submitted'], False)
+
+    def test_history_uses_one_read_snapshot_during_interleaved_writer(self):
+        candidacy_id = self.create()
+        with self.database._connection() as connection:
+            self.assertEqual(connection.execute('PRAGMA journal_mode=WAL').fetchone()[0], 'wal')
+        writer = CandidacyWorkflow(ApplicationDatabase(self.database.path), self.resumes)
+        triggered = []
+        class InterleavingConnection(sqlite3.Connection):
+            def execute(inner, sql, *args, **kwargs):
+                if sql.startswith('SELECT * FROM candidacy_events') and not triggered:
+                    triggered.append(True)
+                    writer.edit(candidacy_id, content='Writer second revision')
+                return super().execute(sql, *args, **kwargs)
+        def interleaving_connection():
+            connection = sqlite3.connect(self.database.path, timeout=30, factory=InterleavingConnection)
+            connection.row_factory = sqlite3.Row
+            connection.execute('PRAGMA foreign_keys=ON')
+            return connection
+        with patch.object(self.database, 'connect', side_effect=interleaving_connection):
+            history = self.workflow.history(candidacy_id)
+        self.assertTrue(triggered)
+        self.assertEqual(self.workflow.get(candidacy_id)['revision'], 2)
+        revisions = {item['revision'] for item in history if item['type'] == 'revision'}
+        event_revisions = {item['revision'] for item in history if item['type'] == 'event'}
+        self.assertEqual(revisions, {1})
+        self.assertTrue(event_revisions <= revisions)
 
     def test_verifier_is_required_and_errors_are_redacted(self):
         with self.assertRaises(WorkflowError):

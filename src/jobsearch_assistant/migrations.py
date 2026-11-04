@@ -5,6 +5,7 @@ import json
 import os
 import sqlite3
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
@@ -46,9 +47,102 @@ def backup_database(source: Path, destination: Path) -> Path:
             reader.close()
 
 
+def _invalidate_restored_workflow(connection: sqlite3.Connection) -> None:
+    """Discard copied capabilities while preserving their immutable bindings.
+
+    A backup cannot know whether its original permissions were later consumed.
+    A restored draft therefore needs a new revision and an explicit new review.
+    The private copy is the only database modified by this guard.
+    """
+    from .workflow_contracts import canonical_json, require_dry_run
+
+    require_dry_run()
+    rows = connection.execute("""
+        SELECT * FROM candidacies WHERE workflow_state IN ('reviewed', 'approved')
+        OR id IN (SELECT candidacy_id FROM candidacy_authorizations WHERE status='active')
+    """).fetchall()
+    timestamp = datetime.now(timezone.utc).isoformat()
+    for candidacy in rows:
+        revision = connection.execute("""
+            SELECT snapshot_json FROM candidacy_revisions WHERE candidacy_id=? AND revision=?
+        """, (candidacy['id'], candidacy['revision'])).fetchone()
+        if revision is None:
+            raise ValueError('Invalid restored workflow snapshot')
+        try:
+            snapshot = json.loads(revision['snapshot_json'])
+            for key in ('application_id', 'vacancy_id', 'resume_version_id', 'company', 'content', 'revision'):
+                if snapshot[key] != candidacy[key]:
+                    raise ValueError()
+            if snapshot['candidacy_id'] != candidacy['id']:
+                raise ValueError()
+            snapshot['revision'] = candidacy['revision'] + 1
+            snapshot_json = canonical_json(snapshot)
+        except (TypeError, KeyError, ValueError):
+            raise ValueError('Invalid restored workflow snapshot') from None
+        connection.execute("""
+            UPDATE candidacy_authorizations SET status='invalidated'
+            WHERE candidacy_id=? AND status='active'
+        """, (candidacy['id'],))
+        connection.execute("""
+            UPDATE candidacies SET revision=?, workflow_state='draft', review_digest=NULL, updated_at=? WHERE id=?
+        """, (snapshot['revision'], timestamp, candidacy['id']))
+        connection.execute("""
+            INSERT INTO candidacy_revisions(candidacy_id, revision, snapshot_json, created_at)
+            VALUES (?, ?, ?, ?)
+        """, (candidacy['id'], snapshot['revision'], snapshot_json, timestamp))
+        connection.execute("""
+            INSERT INTO candidacy_events(candidacy_id, revision, event_type, snapshot_json, created_at)
+            VALUES (?, ?, 'restored', ?, ?)
+        """, (candidacy['id'], snapshot['revision'],
+              canonical_json({'previous_revision': candidacy['revision'], 'snapshot': snapshot}), timestamp))
+    if connection.execute("SELECT 1 FROM candidacy_authorizations WHERE status='active' LIMIT 1").fetchone():
+        raise ValueError('Invalid restored authorization state')
+
+
 def restore_backup(source: Path, destination: Path) -> Path:
-    """Restore to a fresh destination; never replace a live or existing database."""
-    return backup_database(source, destination)
+    """Publish a fresh, checked copy with all copied capabilities revoked.
+
+    A private temporary file prevents any caller from opening an unguarded
+    restored database. A hard link publishes it atomically without overwriting
+    an existing destination; filesystems without hard links fail closed.
+    Legacy schemas remain at their original version without migration.
+    """
+    destination = Path(destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if os.path.lexists(destination):
+        raise FileExistsError('Restore destination already exists')
+    staging = destination.with_name('.' + destination.name + '.restore-' + uuid.uuid4().hex)
+    connection = None
+    try:
+        backup_database(source, staging)
+        connection = sqlite3.connect(staging, timeout=30, isolation_level=None)
+        connection.row_factory = sqlite3.Row
+        connection.execute('PRAGMA foreign_keys=ON')
+        # A closed, single-file copy must include every guarded write at publish.
+        connection.execute('PRAGMA journal_mode=DELETE')
+        connection.execute('BEGIN IMMEDIATE')
+        marker = connection.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()
+        if marker is None or marker[0] not in ('1', '2', str(SCHEMA_VERSION)):
+            raise ValueError('Unsupported SQLite schema version')
+        if marker[0] == str(SCHEMA_VERSION):
+            _invalidate_restored_workflow(connection)
+        if (connection.execute('PRAGMA integrity_check').fetchall()[0][0] != 'ok'
+                or connection.execute('PRAGMA foreign_key_check').fetchall()):
+            raise ValueError('Invalid restored SQLite database')
+        connection.commit()
+        connection.close()
+        connection = None
+        os.link(staging, destination)
+        return destination
+    finally:
+        if connection is not None:
+            try:
+                connection.rollback()
+            finally:
+                connection.close()
+        # These names belong only to this invocation's exclusive private copy.
+        for suffix in ('', '-journal', '-wal', '-shm'):
+            Path(str(staging) + suffix).unlink(missing_ok=True)
 
 
 def legacy_identity(url: str, company: str, title: str) -> str:
