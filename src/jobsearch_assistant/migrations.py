@@ -8,7 +8,7 @@ import uuid
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 def backup_database(source: Path, destination: Path) -> Path:
@@ -114,6 +114,73 @@ def _migrate_v1_to_v2(connection: sqlite3.Connection) -> None:
         )
 
 
+def _migrate_v2_to_v3(connection: sqlite3.Connection) -> None:
+    # All additions are independent of the unchanged historical tracker rows.
+    connection.execute("""
+        CREATE TABLE candidacies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            application_id INTEGER NOT NULL UNIQUE REFERENCES applications(id),
+            vacancy_id INTEGER NOT NULL UNIQUE REFERENCES vacancies(id),
+            resume_version_id TEXT NOT NULL,
+            workflow_state TEXT NOT NULL CHECK(workflow_state IN ('draft','reviewed','approved','simulated')),
+            revision INTEGER NOT NULL CHECK(revision >= 1),
+            content TEXT NOT NULL, company TEXT NOT NULL,
+            review_digest TEXT,
+            outcome TEXT NOT NULL DEFAULT '', next_step TEXT NOT NULL DEFAULT '',
+            follow_up_on TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+        )
+    """)
+    connection.execute("""
+        CREATE TABLE candidacy_revisions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            candidacy_id INTEGER NOT NULL REFERENCES candidacies(id),
+            revision INTEGER NOT NULL, snapshot_json TEXT NOT NULL, created_at TEXT NOT NULL,
+            UNIQUE(candidacy_id, revision)
+        )
+    """)
+    connection.execute("""
+        CREATE TABLE candidacy_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            candidacy_id INTEGER NOT NULL REFERENCES candidacies(id),
+            revision INTEGER NOT NULL, event_type TEXT NOT NULL,
+            snapshot_json TEXT NOT NULL, created_at TEXT NOT NULL
+        )
+    """)
+    connection.execute("""
+        CREATE TABLE candidacy_authorizations (
+            authorization_id TEXT PRIMARY KEY,
+            candidacy_id INTEGER NOT NULL REFERENCES candidacies(id),
+            revision INTEGER NOT NULL, review_digest TEXT NOT NULL,
+            snapshot_json TEXT NOT NULL,
+            status TEXT NOT NULL CHECK(status IN ('active','invalidated','consumed')),
+            created_at TEXT NOT NULL, consumed_at TEXT, receipt_json TEXT,
+            UNIQUE(candidacy_id, revision)
+        )
+    """)
+    for table in ('candidacy_revisions', 'candidacy_events'):
+        for action in ('UPDATE', 'DELETE'):
+            connection.execute(f"""
+                CREATE TRIGGER {table}_no_{action.lower()} BEFORE {action} ON {table}
+                BEGIN SELECT RAISE(ABORT, 'Immutable workflow history'); END
+            """)
+    connection.execute("""
+        CREATE TRIGGER candidacy_authorizations_immutable_binding
+        BEFORE UPDATE OF authorization_id, candidacy_id, revision, review_digest, snapshot_json, created_at
+        ON candidacy_authorizations
+        BEGIN SELECT RAISE(ABORT, 'Immutable authorization binding'); END
+    """)
+    connection.execute("""
+        CREATE TRIGGER candidacy_authorizations_no_delete BEFORE DELETE ON candidacy_authorizations
+        BEGIN SELECT RAISE(ABORT, 'Immutable authorization history'); END
+    """)
+    connection.execute("""
+        CREATE TRIGGER candidacy_authorizations_terminal
+        BEFORE UPDATE ON candidacy_authorizations WHEN OLD.status != 'active'
+        BEGIN SELECT RAISE(ABORT, 'Terminal authorization state'); END
+    """)
+
+
 def initialize_database(path: Path) -> None:
     """Serialize initializers and commit schema+version together, or change nothing."""
     path = Path(path)
@@ -127,6 +194,7 @@ def initialize_database(path: Path) -> None:
         if not tables:
             _create_legacy_tables(connection)
             _migrate_v1_to_v2(connection)
+            _migrate_v2_to_v3(connection)
             connection.execute("INSERT INTO meta VALUES ('schema_version', ?)",
                                (str(SCHEMA_VERSION),))
         else:
@@ -135,12 +203,14 @@ def initialize_database(path: Path) -> None:
             marker = connection.execute(
                 "SELECT value FROM meta WHERE key='schema_version'"
             ).fetchone()
-            if marker is None or marker[0] not in ('1', str(SCHEMA_VERSION)):
+            if marker is None or marker[0] not in ('1', '2', str(SCHEMA_VERSION)):
                 raise ValueError('Unsupported SQLite schema version')
-            if marker[0] == '1':
-                destination = path.with_name(path.name + '.schema1-' + uuid.uuid4().hex + '.bak')
+            if marker[0] in ('1', '2'):
+                destination = path.with_name(path.name + '.schema' + marker[0] + '-' + uuid.uuid4().hex + '.bak')
                 backup_database(path, destination)
-                _migrate_v1_to_v2(connection)
+                if marker[0] == '1':
+                    _migrate_v1_to_v2(connection)
+                _migrate_v2_to_v3(connection)
                 connection.execute("UPDATE meta SET value=? WHERE key='schema_version'",
                                    (str(SCHEMA_VERSION),))
         connection.commit()

@@ -59,7 +59,7 @@ class MigrationTests(unittest.TestCase):
             make_legacy(path)
             before = contents(path)
             database = ApplicationDatabase(path)
-            self.assertEqual(version(path), '2')
+            self.assertEqual(version(path), '3')
             self.assertEqual(contents(path), before)
             self.assertEqual([item.id for item in database.list()], [8, 3])
             self.assertEqual(database.list()[0].evaluation.algorithm_version, 'legacy_v1')
@@ -70,12 +70,75 @@ class MigrationTests(unittest.TestCase):
             if os.name != 'nt':
                 self.assertEqual(stat.S_IMODE(backups[0].stat().st_mode), 0o600)
 
-    def test_new_database_initializes_schema_two(self):
+    def test_new_database_initializes_schema_three(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'new.sqlite3'
             self.assertEqual(ApplicationDatabase(path).list(), [])
-            self.assertEqual(version(path), '2')
+            self.assertEqual(version(path), '3')
             self.assertEqual(list(Path(directory).glob('*.bak')), [])
+
+    def test_schema_two_upgrade_preserves_all_rows_and_origin_backup(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'schema-two.sqlite3'
+            make_legacy(path)
+            with closing(sqlite3.connect(path)) as connection, connection:
+                migrations._migrate_v1_to_v2(connection)
+                connection.execute("UPDATE meta SET value='2' WHERE key='schema_version'")
+                connection.execute("INSERT INTO vacancies VALUES (5, 'manual', 'synthetic', 'job-1', '{ \"observed\": true }')")
+                connection.execute("INSERT INTO evaluations VALUES (7, 5, 'matching_v2', 'profile', 'inputs', '{ \"job\": 1 }', '{ \"private\": 2 }', '{ \"score\": 82 }')")
+                before = {table: connection.execute('SELECT * FROM ' + table).fetchall()
+                          for table in ('applications', 'application_identities', 'vacancies', 'evaluations')}
+            ApplicationDatabase(path)
+            self.assertEqual(version(path), '3')
+            backups = list(Path(directory).glob('*.schema2-*.bak'))
+            self.assertEqual(len(backups), 1)
+            self.assertEqual(version(backups[0]), '2')
+            for candidate in (path, backups[0]):
+                with closing(sqlite3.connect(candidate)) as connection:
+                    for table, rows in before.items():
+                        self.assertEqual(connection.execute('SELECT * FROM ' + table).fetchall(), rows)
+
+    def test_schema_two_failed_or_abrupt_upgrade_recovers_original_schema(self):
+        for abrupt in (False, True):
+            with self.subTest(abrupt=abrupt), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / 'schema-two.sqlite3'
+                make_legacy(path)
+                with closing(sqlite3.connect(path)) as connection, connection:
+                    migrations._migrate_v1_to_v2(connection)
+                    connection.execute("UPDATE meta SET value='2' WHERE key='schema_version'")
+                before = contents(path)
+                if abrupt:
+                    script = """
+import os, sys
+from pathlib import Path
+from jobsearch_assistant import migrations
+original = migrations._migrate_v2_to_v3
+def interrupted(connection):
+    original(connection)
+    os._exit(38)
+migrations._migrate_v2_to_v3 = interrupted
+migrations.initialize_database(Path(sys.argv[1]))
+"""
+                    process = subprocess.run([sys.executable, '-c', script, str(path)],
+                                             check=False, capture_output=True, text=True, timeout=30)
+                    self.assertEqual(process.returncode, 38, process.stderr)
+                else:
+                    original = migrations._migrate_v2_to_v3
+                    def interrupted(connection):
+                        original(connection)
+                        raise RuntimeError('Synthetic interruption')
+                    with patch.object(migrations, '_migrate_v2_to_v3', interrupted), self.assertRaises(RuntimeError):
+                        ApplicationDatabase(path)
+                self.assertEqual(version(path), '2')
+                self.assertEqual(contents(path), before)
+                with closing(sqlite3.connect(path)) as connection:
+                    self.assertEqual(connection.execute("SELECT name FROM sqlite_master WHERE name='candidacies'").fetchall(), [])
+                    self.assertEqual(connection.execute('PRAGMA integrity_check').fetchone(), ('ok',))
+                backup = next(Path(directory).glob('*.schema2-*.bak'))
+                self.assertEqual(version(backup), '2')
+                self.assertEqual(contents(backup), before)
+                ApplicationDatabase(path)
+                self.assertEqual(version(path), '3')
 
     def test_future_schema_is_rejected_without_changing_data_or_journal_mode(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -134,7 +197,7 @@ class MigrationTests(unittest.TestCase):
                 self.assertEqual(connection.execute('PRAGMA integrity_check').fetchone(), ('ok',))
             self.assertEqual(contents(next(Path(directory).glob('*.bak'))), before)
             ApplicationDatabase(path)
-            self.assertEqual(version(path), '2')
+            self.assertEqual(version(path), '3')
 
     def test_abrupt_process_exit_during_migration_recovers_schema_one(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -166,7 +229,7 @@ ApplicationDatabase(Path(sys.argv[1]))
                 ).fetchall(), [])
             self.assertEqual(contents(next(Path(directory).glob('*.bak'))), before)
             ApplicationDatabase(path)
-            self.assertEqual(version(path), '2')
+            self.assertEqual(version(path), '3')
             self.assertEqual(contents(path), before)
 
     def test_concurrent_migrations_create_one_backup_and_preserve_history(self):
@@ -183,7 +246,7 @@ ApplicationDatabase(Path(sys.argv[1]))
             with ThreadPoolExecutor(max_workers=2) as executor:
                 self.assertEqual(list(executor.map(initialize, range(2))), [2, 2])
             self.assertEqual(contents(path), before)
-            self.assertEqual(version(path), '2')
+            self.assertEqual(version(path), '3')
             self.assertEqual(len(list(Path(directory).glob('*.bak'))), 1)
 
     def test_backup_includes_committed_wal_and_restore_uses_fresh_destination(self):
@@ -230,7 +293,7 @@ ApplicationDatabase(Path(sys.argv[1]))
                 self.assertEqual(contents(backup), expected)
                 self.assertEqual(version(backup), '1')
                 self.assertEqual(contents(path), expected)
-                self.assertEqual(version(path), '2')
+                self.assertEqual(version(path), '3')
             finally:
                 connection.close()
 
