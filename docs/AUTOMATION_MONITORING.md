@@ -179,7 +179,7 @@ no resetear estados para forzar un replay.
 Ante 429 inequívoco se persiste la mayor espera entre `parameters.retry_after` y
 `Retry-After`; no se espera más allá del presupuesto. Otros rechazos definitivos
 terminan el evento. Defaults: máximo 10 intentos por drenaje, 3 intentos por evento,
-intervalo 3.1 s por chat, 30 s de presupuesto de notificación dentro del total,
+intervalo 3.1 s por chat desde el cierre de la entrega anterior, 30 s de presupuesto de notificación dentro del total,
 timeout 10 s y respuesta 64 KiB. Los límites son configurables por `TelegramConfig`
 en API; la CLI solo expone activación y presupuesto total para reducir superficie.
 No paid broadcasts, contenido activo ni redirects; TLS/proxy normales.
@@ -236,8 +236,8 @@ Codex Cloud sigue siendo un entorno de desarrollo, no alojamiento permanente.
 Los resultados finales de unittest/pytest, revisión y seis jobs CI del commit
 publicado se registran en el PR; las pruebas de CI no dependen de servicios externos.
 
-Verificación local final: Python 3.12, **371 unittest** y
-**371 pytest +604 subtests**, aprobados. `pip check` y compilación aprobados.
+Verificación local final: Python 3.12, **372 unittest** y
+**372 pytest +604 subtests**, aprobados. `pip check` y compilación aprobados.
 Ruff E9/F no detecta errores nuevos; existe F401 histórico en
 `scripts/auto_update.py`, fuera de alcance y sin modificar.
 
@@ -248,6 +248,14 @@ al revisor una segunda inspección del código posterior. La respuesta completad
 se entrega desde IPC y guarda sus metadatos antes de cancelar; no se procesa otro
 JSON, matching o reintento después del límite. Un Retry-After jamás recibido por
 el proceso sigue siendo desconocido.
+
+La primera matriz CI (72) detectó en Windows un fixture SQLite sin cerrar, una
+carrera al publicar el PID del worker y un intervalo Telegram acortado por el
+tiempo de preparación del transporte. Se cerró explícitamente la conexión y se
+publicó el marcador atómicamente; el intervalo ahora se reserva también después
+de terminar la entrega. Una prueba de reloj simulado reprodujo 2.9 s frente a los
+3.1 s configurados y verificó la corrección. Se conservan las aserciones anteriores,
+sin skips nuevos. La matriz del encabezado final se confirma en el PR #10.
 
 Los tests no certifican un límite duro de VM SQL o de finalización para bases de
 tamaño arbitrario: el recorrido de borradores/historial y disco pueden añadir

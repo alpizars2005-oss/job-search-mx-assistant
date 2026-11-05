@@ -99,4 +99,6 @@ SECURITY/PRIVACY/ARCHITECTURE, CI y pruebas de interfaces.
   PizzaLab, sin crear/instalar timers de Fase 6.
 - [x] Suite unittest/pytest/pip check/compileall y smoke CLI/GUI existente.
 - [x] Revisión independiente de rama, corregir hallazgos verificables; commits.
-- [ ] PR a main y artefacto adjunto, verificar seis jobs del HEAD final, no fusionar.
+- [x] PR [#10](https://github.com/alpizars2005-oss/job-search-mx-assistant/pull/10)
+  a main y artefacto adjunto; no fusionar.
+- Verificación de seis jobs del HEAD final: evidencia y cierre en el PR.
