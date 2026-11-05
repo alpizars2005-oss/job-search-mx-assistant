@@ -39,3 +39,21 @@ oficial revoca autorizaciones activas; no copiar una base antigua para reactivar
 No usar una carpeta dentro del checkout como almacén privado. Las evidencias se
 verifican por hash y atestación humana; su verdad no se certifica automáticamente.
 Detalles en [CV y candidaturas](RESUMES_CANDIDACIES.md).
+
+## Automatización y terceros opcionales — Fase 5
+
+Los nuevos resúmenes/logs operativos contienen solo códigos, fechas, IDs internos
+y contadores. SQLite conserva también snapshots privados anteriores: el resumen
+redactado no convierte el backup en información pública. El home de automatización
+se exige fuera del checkout. No se altera el contenido de CV/candidaturas.
+
+Telegram permanece desactivado; solo con configuración y `--notify` autorizados
+salen etiquetas estáticas y IDs/cantidades. No títulos, empresas, URLs, perfiles o
+CV. Chat/token nunca se imprimen, pero Telegram conocerá el destinatario, horarios
+y esos avisos. Pendientes/ambiguos permanecen en SQLite; revisar antes de activar.
+
+Claude no fue invocado. Una activación futura enviará el diff seleccionado al
+proveedor y puede imprimirlo en logs de Actions: revisar previamente secretos/datos
+personales, protección del environment, retención y coste. Nunca incluir documentos
+privados para facilitar la revisión. Ver [operación](AUTOMATION_MONITORING.md) y
+[revisión preparada](CLAUDE_REVIEW.md).

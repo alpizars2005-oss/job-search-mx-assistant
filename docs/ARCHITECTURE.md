@@ -79,3 +79,20 @@ parcial. Un recibo de simulación no representa una operación externa. La futur
 entrega a un ATS requiere diseño/autorización propios; no se disfraza como consumo
 SQLite una garantía de exactly-once sobre un servicio remoto. Ver
 [contrato de operación](RESUMES_CANDIDACIES.md).
+
+## Operación implementada en Fase 5
+
+- `runtime_control.py`: presupuesto/cancelación, mutex OS y HTTP en worker spawn.
+- `sources/http.py`: estado UTC exportable/importable y checkpoints durables; el
+  contrato anterior sin control continúa disponible.
+- `automation_schema.py`/`automation_store.py`: esquema 4, historial y observación
+  atómica reutilizando upsert/invalidation/evaluation internos de Fases 3–4.
+- `automation.py`/`automation_cli.py`: una ejecución finita, callbacks por página,
+  logs allowlist, perfil estricto y lecturas operativas sin migración.
+- `notifications.py`/`telegram.py`: outbox local, entrega mínima opt-in y recuperación
+  conservadora; ninguna notificación es una autorización de candidatura.
+- Workflow Claude manual y preparador confiable: diff acotado tratado como datos,
+  sin extraer código del PR ni herramientas para modificarlo; default desactivado.
+
+No hay daemon, servicio nuevo, scheduler residente o despliegue. El punto de entrada
+podrá invocarse desde un timer autorizado en Fase 6. Ver [operación](AUTOMATION_MONITORING.md).

@@ -3,14 +3,27 @@
 Fecha de auditoría de Fase 1: 2026-11-04. Base histórica: `main` en
 `54c7c9ee21fd88625386799782f40da8b6882a5d`.
 
-**Fase actualmente autorizada: Fase 4, CV, candidaturas y tracker.**
-Las Fases 1, 2 y 3 fueron integradas en los PR #6, #7 y #8.
-Base de Fase 4: `67c10918295a2b30abe9ffd9d5b03f3ec5f24f16`, con CI de main
-aprobado en seis combinaciones (ejecución 69). Fases 5–6 pendientes y fuera de alcance.
+**Fase actualmente autorizada: Fase 5, automatización y monitoreo.**
+Las Fases 1–4 fueron integradas en los PR #6, #7, #8 y #9.
+Base de Fase 5: `a30d036fcd932a176dfa08b7cddbab83a351e0eb`, con CI de main
+aprobado en seis combinaciones (ejecución 71). Fase 6 pendiente y fuera de alcance.
 Cada fase termina en un PR a `main`; no fusionar automáticamente ni comenzar
 una fase dependiente hasta integrar su requisito y obtener autorización de alcance.
 
-## Estado de Fase 4
+## Estado de Fase 5
+
+Comando único `automation run`, bloqueo del sistema operativo, recuperación de
+runs interrumpidos, estados HTTP durables y presupuesto con transporte terminable.
+SQLite esquema 4 confirma vacante/evaluación/hallazgo/outbox en una transacción,
+reutiliza evaluaciones sin cambios y preserva candidaturas y aprobaciones exactas.
+Logs JSON redactados, health de solo lectura e historial. Telegram opt-in con
+intentos finitos y entrega ambigua sin replay; ninguna notificación real enviada.
+Claude oficial preparado/desactivado sin invocación ni revisión ficticia.
+Ver [operación y límites](docs/AUTOMATION_MONITORING.md),
+[Claude](docs/CLAUDE_REVIEW.md) y [plan](docs/superpowers/plans/2026-11-05-automation-monitoring.md).
+Resultados completos y CI del encabezado publicado se registran en el PR.
+
+## Estado de Fase 4 (histórico, integrada en PR #9)
 
 Almacén privado de maestros ES/EN con evidencia y atestación, versiones TXT/DOCX
 direccionadas por contenido y adaptación mediante selección de hechos. Borradores
@@ -213,7 +226,7 @@ salario desconocido e información esencial faltante. Las seis clasificaciones
 objetivo de `AGENTS.md` tienen precedencia explícita; no reinterpretar resultados
 históricos sin versionar el algoritmo.
 
-### Fase 4 — Candidaturas y tracker (esta entrega)
+### Fase 4 — Candidaturas y tracker (integrada, PR #9)
 
 Requisito comprobado: PR #8 integrado y CI de main satisfactorio. Commits: contratos,
 versiones de CV con evidencia, borradores y
@@ -224,9 +237,10 @@ transiciones válidas, detección de repetidos y ningún envío no autorizado.
 Cambiar la versión del CV invalida aprobación; guardar o cambiar estado local
 no envía nada. No responder evaluaciones de selección automáticamente.
 
-### Fase 5 — Automatización, Telegram y revisión independiente (pendiente)
+### Fase 5 — Automatización, Telegram y revisión independiente (esta entrega)
 
-Requiere Fase 4 integrada. Commits: ejecución periódica idempotente, bloqueo
+Requisito comprobado: Fase 4 integrada, CI 71 satisfactorio y misión autorizada.
+Commits: ejecución periódica idempotente, bloqueo
 local y recuperación, logs/health checks, Telegram opt-in y revisión oficial
 de Claude Code mediante GitHub Actions u opción equivalente de Cloud.
 
@@ -290,7 +304,7 @@ Reutilizar identidades y snapshots para versiones de CV/borradores; una evaluaci
 o estado local jamás autoriza un envío. No hay scheduler, Telegram, integración de
 Claude, despliegue ni cambios en PizzaLab en Fase 3.
 
-## Continuación después de Fase 4
+## Continuación después de Fase 4 (histórico)
 
 Integrar su PR tras revisión y autorizar Fase 5 antes de cambios dependientes.
 Reutilizar el workflow exacto y la política segura; los recibos de simulación no
@@ -299,3 +313,11 @@ definir transporte, entrega de bytes aprobados, recuperación y deduplicación d
 efectos externos; esta fase no resuelve una transacción distribuida con un ATS.
 No activar Telegram, Claude o un scheduler por consecuencia de guardar borradores.
 No hay despliegue ni cambios en PizzaLab.
+
+## Continuación después de Fase 5
+
+Integrar el PR tras revisión y autorizar Fase 6 antes de acceder al destino o crear
+unidades systemd. Falta comprobar el LXC Debian/Python y red reales, usuario/ACL,
+versión fijada, presupuesto del timer, backups, retención y rollback. Telegram y
+Claude requieren configuración y autorización separadas; su preparación no implica
+que estén activos. El motor es ejecutable una vez, no alojamiento en Codex Cloud.

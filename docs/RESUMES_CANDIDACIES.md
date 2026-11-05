@@ -1,5 +1,9 @@
 # CV, candidaturas y tracker — Fase 4
 
+**Continuidad en Fase 5:** esquema actual 4 añade automatización e historial
+operativo sin generar/aprobar candidaturas. Mantiene este guard y revoca permisos
+al cambiar vacantes/restaurar. Ver [operación](AUTOMATION_MONITORING.md).
+
 Esta fase agrega documentos privados, borradores revisables y autorizaciones para
 una **simulación local**. No existe un sender ni se envían CV, correos o candidaturas.
 Registrar `applied` conserva su significado de seguimiento manual.

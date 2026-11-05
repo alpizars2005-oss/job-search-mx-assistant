@@ -4,15 +4,17 @@ import json
 import random as random_module
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from http.client import HTTPException
-from typing import Callable, TypeVar
+from typing import TypeVar
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
+from ..runtime_control import BoundedTransport
 from .models import HttpResponse, RequestPolicy, SourceError
 
 API_HOSTS = {
@@ -110,6 +112,7 @@ class _State:
     paused_until: float = 0.0
     not_before: float = 0.0
     last_request: float | None = None
+    in_flight_until: float = 0.0
 
 
 def _unique_object(pairs):
@@ -129,11 +132,87 @@ class SafeHttpClient:
     def __init__(self, policy: RequestPolicy | None = None, *, transport=None,
                  sleep: Callable = time.sleep, monotonic: Callable = time.monotonic,
                  now: Callable = lambda: datetime.now(timezone.utc),
-                 random: Callable = random_module.random):
+                 random: Callable = random_module.random, control=None,
+                 state_callback: Callable | None = None):
         self.policy = policy or RequestPolicy()
-        self.transport = transport or UrllibTransport()
+        self.control, self.state_callback = control, state_callback
+        self.transport = (transport if transport is not None else
+                          BoundedTransport(control) if control is not None else UrllibTransport())
         self.sleep, self.monotonic, self.now, self.random = sleep, monotonic, now, random
         self._states: dict[str, _State] = {}
+
+    def export_state(self) -> dict:
+        """Export only provider health/deadlines, never run quotas or HTTP data."""
+        current = self.monotonic()
+        now = self.now().astimezone(timezone.utc)
+
+        def deadline(value):
+            return (now + timedelta(seconds=max(0, value - current))).isoformat() if value > current else None
+
+        providers = {}
+        for provider, state in self._states.items():
+            pending = state.in_flight_until > 0
+            failures = state.failures + int(pending)
+            paused = state.paused_until
+            if pending and failures >= self.policy.error_threshold:
+                paused = max(paused, state.in_flight_until,
+                             current + self.policy.pause_seconds)
+            providers[provider] = {
+                'failures': failures,
+                'paused_until': deadline(paused),
+                'not_before': deadline(max(state.not_before, state.in_flight_until)),
+            }
+        return {'version': 1, 'providers': providers}
+
+    def import_state(self, payload) -> None:
+        """Atomically restore UTC deadlines against this process's clock."""
+        current, now = self.monotonic(), self.now()
+        restored = {}
+
+        def deadline(value):
+            if value is None:
+                return 0.0
+            if not isinstance(value, str) or len(value) > 64:
+                raise ValueError
+            date = datetime.fromisoformat(value)
+            if date.tzinfo is None:
+                raise ValueError
+            return current + max(0.0, (date - now).total_seconds())
+
+        try:
+            if (not isinstance(payload, dict) or set(payload) != {'version', 'providers'}
+                    or type(payload['version']) is not int or payload['version'] != 1
+                    or not isinstance(payload['providers'], dict)
+                    or not set(payload['providers']).issubset(API_HOSTS)):
+                raise ValueError
+            for provider, values in payload['providers'].items():
+                if (not isinstance(values, dict)
+                        or set(values) != {'failures', 'paused_until', 'not_before'}
+                        or type(values['failures']) is not int
+                        or not 0 <= values['failures'] <= 1000):
+                    raise ValueError
+                state = _State(
+                    failures=values['failures'], paused_until=deadline(values['paused_until']),
+                    not_before=deadline(values['not_before']))
+                if values['paused_until'] is not None and state.paused_until <= current:
+                    state.paused_until, state.failures = 0.0, 0
+                restored[provider] = state
+        except (TypeError, ValueError, OverflowError):
+            raise SourceError('invalid_http_state') from None
+        # Importing durable health cannot replenish this process's request quota.
+        for provider, state in restored.items():
+            previous = self._states.get(provider)
+            if previous is not None:
+                state.requests, state.wait_used = previous.requests, previous.wait_used
+        self._states.update(restored)
+
+    def _state_changed(self) -> None:
+        if self.state_callback is not None:
+            self.state_callback(self.export_state())
+
+    def _check(self) -> None:
+        if self.control is not None:
+            self.control.check()
 
     @property
     def request_counts(self) -> dict[str, int]:
@@ -145,30 +224,42 @@ class SafeHttpClient:
             state.requests = 0
             state.wait_used = 0.0
 
-    def _failure(self, state: _State) -> None:
+    def _failure(self, state: _State, *, notify: bool = True) -> None:
         state.failures += 1
         if state.failures >= self.policy.error_threshold:
             state.paused_until = max(state.paused_until,
                                      self.monotonic() + self.policy.pause_seconds)
+        if notify:
+            self._state_changed()
 
     def _guard(self, state: _State) -> None:
+        self._check()
         current = self.monotonic()
         if state.paused_until > current:
             raise SourceError('source_paused')
         if state.paused_until:
             state.paused_until = 0
             state.failures = 0
+            self._state_changed()
         if state.requests >= self.policy.max_requests:
             raise SourceError('request_limit')
 
     def _wait(self, state: _State, delay: float) -> None:
+        self._check()
         if delay > self.policy.max_wait - state.wait_used:
             state.paused_until = max(state.paused_until, state.not_before,
                                      self.monotonic() + self.policy.pause_seconds)
+            self._state_changed()
             raise SourceError('source_paused')
         if delay > 0:
-            self.sleep(delay)
+            state.not_before = max(state.not_before, self.monotonic() + delay)
+            self._state_changed()
+            if self.control is None:
+                self.sleep(delay)
+            else:
+                self.control.sleep(delay)
             state.wait_used += delay
+        self._check()
 
     def _retry_after(self, value: str, state: _State) -> float:
         try:
@@ -181,8 +272,10 @@ class SafeHttpClient:
                 delay = max(0.0, (date - self.now()).total_seconds())
         except (TypeError, ValueError, OverflowError):
             state.paused_until = self.monotonic() + self.policy.pause_seconds
+            self._state_changed()
             raise SourceError('invalid_retry_after') from None
         state.not_before = max(state.not_before, self.monotonic() + delay)
+        self._state_changed()
         return delay
 
     def get_json(self, provider: str, url: str, validator: Callable = lambda data: data) -> T:
@@ -194,17 +287,26 @@ class SafeHttpClient:
             interval = 0 if state.last_request is None else (
                 state.last_request + self.policy.min_interval - current)
             self._wait(state, max(0, interval, state.not_before - current))
+            self._check()
             state.requests += 1
             state.last_request = self.monotonic()
+            state.not_before = max(state.not_before, state.last_request + self.policy.min_interval)
+            state.in_flight_until = state.last_request + self.policy.timeout
+            self._state_changed()
+            self._check()
             headers = {}
             try:
-                response = self.transport(url, self.policy.timeout, self.policy.max_response_bytes)
+                timeout = (self.policy.timeout if self.control is None else
+                           min(self.policy.timeout, self.control.remaining()))
+                response = self.transport(url, timeout, self.policy.max_response_bytes)
                 headers = {key.lower(): value for key, value in response.headers.items()}
                 status = response.status
             except (URLError, OSError, TimeoutError, HTTPException):
                 status = 0
+            state.in_flight_until = 0.0
             if status == 200:
                 try:
+                    self._check()
                     if len(response.body) > self.policy.max_response_bytes:
                         raise SourceError('response_too_large')
                     if headers.get('content-encoding', 'identity').lower() != 'identity':
@@ -220,12 +322,16 @@ class SafeHttpClient:
                     except (ValueError, UnicodeError, RecursionError):
                         raise SourceError('invalid_json') from None
                     result = validator(payload)
+                    self._check()
                 except SourceError:
                     self._failure(state)
                     raise
                 state.failures = 0
+                self._state_changed()
                 return result
-            self._failure(state)
+            # Commit failure and server cooldown together: an intermediate save
+            # must never replace the pending reservation with an earlier deadline.
+            self._failure(state, notify=False)
             retryable = status == 0 or status == 429 or 500 <= status <= 599
             error = SourceError('network_error' if status == 0 else (
                 'unsafe_redirect' if 300 <= status <= 399 else f'http_{status}'))
@@ -234,6 +340,11 @@ class SafeHttpClient:
                 retry_after = self._retry_after(headers['retry-after'], state)
                 if retry_after > self.policy.max_wait - state.wait_used:
                     self._wait(state, retry_after)
+            else:
+                self._state_changed()
+            # A received failure/cooldown must survive cancellation or deadline;
+            # no parsing, subsequent wait or retry proceeds after this guard.
+            self._check()
             if not retryable or attempt == self.policy.max_retries:
                 raise error
             self._guard(state)

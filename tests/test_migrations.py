@@ -59,7 +59,7 @@ class MigrationTests(unittest.TestCase):
             make_legacy(path)
             before = contents(path)
             database = ApplicationDatabase(path)
-            self.assertEqual(version(path), '3')
+            self.assertEqual(version(path), '4')
             self.assertEqual(contents(path), before)
             self.assertEqual([item.id for item in database.list()], [8, 3])
             self.assertEqual(database.list()[0].evaluation.algorithm_version, 'legacy_v1')
@@ -70,11 +70,11 @@ class MigrationTests(unittest.TestCase):
             if os.name != 'nt':
                 self.assertEqual(stat.S_IMODE(backups[0].stat().st_mode), 0o600)
 
-    def test_new_database_initializes_schema_three(self):
+    def test_new_database_initializes_schema_four(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'new.sqlite3'
             self.assertEqual(ApplicationDatabase(path).list(), [])
-            self.assertEqual(version(path), '3')
+            self.assertEqual(version(path), '4')
             self.assertEqual(list(Path(directory).glob('*.bak')), [])
 
     def test_schema_two_upgrade_preserves_all_rows_and_origin_backup(self):
@@ -89,7 +89,7 @@ class MigrationTests(unittest.TestCase):
                 before = {table: connection.execute('SELECT * FROM ' + table).fetchall()
                           for table in ('applications', 'application_identities', 'vacancies', 'evaluations')}
             ApplicationDatabase(path)
-            self.assertEqual(version(path), '3')
+            self.assertEqual(version(path), '4')
             backups = list(Path(directory).glob('*.schema2-*.bak'))
             self.assertEqual(len(backups), 1)
             self.assertEqual(version(backups[0]), '2')
@@ -138,7 +138,7 @@ migrations.initialize_database(Path(sys.argv[1]))
                 self.assertEqual(version(backup), '2')
                 self.assertEqual(contents(backup), before)
                 ApplicationDatabase(path)
-                self.assertEqual(version(path), '3')
+                self.assertEqual(version(path), '4')
 
     def test_future_schema_is_rejected_without_changing_data_or_journal_mode(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -197,7 +197,7 @@ migrations.initialize_database(Path(sys.argv[1]))
                 self.assertEqual(connection.execute('PRAGMA integrity_check').fetchone(), ('ok',))
             self.assertEqual(contents(next(Path(directory).glob('*.bak'))), before)
             ApplicationDatabase(path)
-            self.assertEqual(version(path), '3')
+            self.assertEqual(version(path), '4')
 
     def test_abrupt_process_exit_during_migration_recovers_schema_one(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -229,7 +229,7 @@ ApplicationDatabase(Path(sys.argv[1]))
                 ).fetchall(), [])
             self.assertEqual(contents(next(Path(directory).glob('*.bak'))), before)
             ApplicationDatabase(path)
-            self.assertEqual(version(path), '3')
+            self.assertEqual(version(path), '4')
             self.assertEqual(contents(path), before)
 
     def test_concurrent_migrations_create_one_backup_and_preserve_history(self):
@@ -246,7 +246,7 @@ ApplicationDatabase(Path(sys.argv[1]))
             with ThreadPoolExecutor(max_workers=2) as executor:
                 self.assertEqual(list(executor.map(initialize, range(2))), [2, 2])
             self.assertEqual(contents(path), before)
-            self.assertEqual(version(path), '3')
+            self.assertEqual(version(path), '4')
             self.assertEqual(len(list(Path(directory).glob('*.bak'))), 1)
 
     def test_backup_includes_committed_wal_and_restore_uses_fresh_destination(self):
@@ -293,7 +293,7 @@ ApplicationDatabase(Path(sys.argv[1]))
                 self.assertEqual(contents(backup), expected)
                 self.assertEqual(version(backup), '1')
                 self.assertEqual(contents(path), expected)
-                self.assertEqual(version(path), '3')
+                self.assertEqual(version(path), '4')
             finally:
                 connection.close()
 

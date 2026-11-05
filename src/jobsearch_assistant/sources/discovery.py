@@ -16,13 +16,15 @@ class DiscoveryEngine:
         self.client = client or SafeHttpClient()
         self.now = now
 
-    def run(self, configs: list[SourceConfig]) -> DiscoveryResult:
+    def run(self, configs: list[SourceConfig], *, on_job=None, on_report=None) -> DiscoveryResult:
         self.client.begin_run()
         jobs, reports, seen = [], [], set()
         for config in configs:
             report = SourceReport(config.provider, config.board)
             reports.append(report)
             if not config.enabled:
+                if on_report:
+                    on_report(report)
                 continue
             report.status = 'ok'
             start = self.client.request_counts.get(config.provider, 0)
@@ -51,6 +53,8 @@ class DiscoveryEngine:
                     else:
                         seen.add(key)
                         jobs.append(job)
+                        if on_job:
+                            on_job(job)
                 if config.provider != 'lever' or page.raw_count < self.client.policy.page_size:
                     break
                 offset += page.raw_count
@@ -59,4 +63,6 @@ class DiscoveryEngine:
             report.requests = self.client.request_counts.get(config.provider, 0) - start
             if report.issues and report.status == 'ok':
                 report.status = 'partial'
+            if on_report:
+                on_report(report)
         return DiscoveryResult(jobs, reports)

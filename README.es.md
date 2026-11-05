@@ -181,3 +181,18 @@ El programa no envía solicitudes automáticamente, no evita CAPTCHAs y no utili
 ## Licencia
 
 MIT. Consulta [LICENSE](LICENSE).
+
+## Automatización y monitoreo — Fase 5
+
+```bash
+jobsearch automation run --config /ruta/privada/sources.json --budget-seconds 120
+jobsearch automation health
+jobsearch automation runs
+jobsearch automation show ID_DE_EJECUCION
+```
+
+Ejecución única con bloqueo OS, presupuesto, cooldowns persistentes, matching e
+historial. No crea/aprueba ni envía candidaturas. Telegram está desactivado y exige
+configuración más `--notify`. Claude oficial queda preparado, sin invocación real.
+Consulta [operación, backup, privacidad y checklist](docs/AUTOMATION_MONITORING.md).
+No hay scheduler residente ni despliegue en PizzaLab.

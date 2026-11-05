@@ -1,5 +1,8 @@
 # SQLite y matching explicable — Fase 3
 
+**Continuidad en Fase 5:** esquema actual 4 con historial operativo y notificaciones;
+matching y snapshots anteriores se conservan. Ver [migración/rollback](AUTOMATION_MONITORING.md).
+
 Este documento conserva el contrato de entrega de Fase 3, integrada en PR #8.
 Fase 4 amplía SQLite a esquema 3 y agrega documentos/candidaturas; consultar
 [backup conjunto, rollback y autorizaciones](RESUMES_CANDIDACIES.md). El matching
