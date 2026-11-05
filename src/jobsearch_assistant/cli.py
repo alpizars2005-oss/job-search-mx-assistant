@@ -100,6 +100,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("doctor", help="Check the local installation")
     sub.add_parser("gui", help="Open the desktop interface")
+    from .daily_report_cli import add_report_parsers
+    from .storage_cli import add_storage_parsers
+
+    add_report_parsers(sub)
+    add_storage_parsers(sub)
     return parser
 
 
@@ -308,8 +313,13 @@ def command_database(args: argparse.Namespace) -> int:
     return 0
 
 
-def main(argv: list[str] | None = None) -> None:
-    args = build_parser().parse_args(argv)
+def _dispatch(args) -> None:
+    if args.command == 'reports':
+        from .daily_report_cli import dispatch_reports
+        raise SystemExit(dispatch_reports(args))
+    if args.command == 'storage':
+        from .storage_cli import dispatch_storage
+        raise SystemExit(dispatch_storage(args))
     if args.command == "automation":
         from .automation_cli import dispatch_automation
 
@@ -370,3 +380,33 @@ def main(argv: list[str] | None = None) -> None:
     else:
         code = 2
     raise SystemExit(code)
+
+
+def _writes_workspace(args):
+    if args.command in {'init', 'settings', 'candidacies', 'resumes'}:
+        return True
+    if args.command == 'profile':
+        return args.profile_command == 'import'
+    if args.command == 'applications':
+        return args.application_command == 'update'
+    if args.command == 'vacancies':
+        return args.vacancy_command in {'import', 'evaluate'}
+    return args.command in {'analyze', 'discover'} and args.save
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = build_parser().parse_args(argv)
+    if _writes_workspace(args):
+        from .private_storage import private_directory
+        from .runtime_control import RunLock
+        from .workflow_contracts import WorkflowError, require_dry_run
+        try:
+            require_dry_run()
+            home = private_directory(data_home())
+            with RunLock(home / 'automation.lock'):
+                _dispatch(args)
+        except WorkflowError as error:
+            print(json.dumps({'event': 'workspace_error', 'code': error.code}), file=sys.stderr)
+            raise SystemExit(2)  # Preserve the established manual workflow error contract.
+    else:
+        _dispatch(args)
