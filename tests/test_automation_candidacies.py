@@ -29,7 +29,7 @@ class AutomationCandidacyTests(WorkflowCase):
         self.assertEqual(len(self.database.list()), 1)
         self.assertEqual(len(self.workflow.list()), 1)
 
-    def test_schema_four_restore_preserves_history_and_revokes_remote_intents(self):
+    def test_schema_five_restore_preserves_history_and_revokes_authorizations(self):
         candidate = self.create()
         authorization = self.authorize(candidate)
         store = AutomationStore(self.database)
@@ -41,9 +41,9 @@ class AutomationCandidacyTests(WorkflowCase):
         backup_database(self.database.path, backup)
         restore_backup(backup, restored)
         with closing(sqlite3.connect(restored)) as connection:
-            self.assertEqual(connection.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0], '4')
+            self.assertEqual(connection.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0], '5')
             self.assertEqual(connection.execute('SELECT status FROM candidacy_authorizations WHERE authorization_id=?',
                                                 (authorization,)).fetchone()[0], 'invalidated')
             self.assertEqual(connection.execute("SELECT COUNT(*) FROM notification_outbox WHERE status='pending'").fetchone()[0], 0)
-            self.assertGreater(connection.execute("SELECT COUNT(*) FROM notification_outbox WHERE status='uncertain'").fetchone()[0], 0)
+            self.assertEqual(connection.execute("SELECT COUNT(*) FROM notification_outbox").fetchone()[0], 0)
             self.assertEqual(connection.execute('SELECT COUNT(*) FROM automation_items').fetchone()[0], 1)
