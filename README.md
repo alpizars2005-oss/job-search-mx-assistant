@@ -247,3 +247,13 @@ See [docs/ROADMAP.md](docs/ROADMAP.md). Planned additions include optional local
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## Automatización y monitoreo — Fase 5
+
+`jobsearch automation run --config /private/sources.json --budget-seconds 120`
+consulta fuentes habilitadas una vez, guarda/evalúa con historial y produce JSON
+redactado. `automation health`, `runs` y `show ID` permiten diagnosticar sin leer
+CV completos. Mutex OS, presupuesto y estados HTTP persistentes permiten reanudar.
+No se crean ni envían candidaturas automáticamente. Telegram necesita configuración
+más `--notify`; Claude queda preparado/desactivado, sin revisión real ejecutada.
+Ver [comandos, recuperación y límites](docs/AUTOMATION_MONITORING.md). Sin despliegue.

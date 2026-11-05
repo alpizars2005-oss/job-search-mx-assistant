@@ -126,6 +126,17 @@ puntajes, etiquetas y JSON históricos `legacy_v1` sin reinterpretación automá
 
 ## Arquitectura y operación
 
+- Fase 5 agrega `automation run/health/runs/show`. RunLock debe cubrir migración,
+  recuperación y búsqueda; nunca borrar/reemplazar el lockfile ni omitir cooldowns
+  durables. Mantener transacción por observación, presupuesto y worker terminable.
+  No ejecutar discover manual en paralelo para evitar cuotas de automatización.
+- Telegram solo drena con `--notify` más enabled/token/chat explícitos. Preservar
+  outbox única; timeout/crash/5xx ambiguos no se reenvían automáticamente. No llevar
+  contenido privado a avisos/logs. Restaurar marca pendientes/en curso como ambiguos.
+- Claude preparado usa workflow manual main, environment con revisión humana y
+  activación explícita. Nunca PR checkout con secretos, herramientas del modelo o
+  datos privados en diff; no afirmar auditoría real a partir de tests sintéticos.
+
 - Python y SQLite; migraciones sencillas versionadas, persistencia confiable.
   Conservar CLI/Tkinter y núcleo compartido, biblioteca estándar por defecto.
   Sin PostgreSQL, Redis, brokers, colas distribuidas o microservicios innecesarios.

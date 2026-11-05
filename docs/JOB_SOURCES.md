@@ -1,5 +1,9 @@
 # Descubrimiento de vacantes públicas — Fase 2
 
+**Continuidad en Fase 5:** `automation run` reutiliza estos contratos y añade mutex,
+estado HTTP durable, presupuesto y recuperación. El comando `discover` conserva
+el comportamiento descrito aquí. Ver [operación](AUTOMATION_MONITORING.md).
+
 **Continuidad en Fase 3:** la descripción siguiente conserva la evidencia de
 entrega de Fase 2. El comando sin opciones nuevas mantiene ese contrato;
 `discover --save` ahora permite persistir y evaluar de forma explícita. Ver

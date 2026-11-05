@@ -18,10 +18,11 @@ proxy del entorno se conservan. No hay acceso a perfiles, cookies o envíos.
 El HTML de las descripciones se convierte en texto, pero continúa siendo dato
 no confiable. Ningún consumidor posterior debe obedecer instrucciones allí ni
 renderizarlo como contenido activo. Los campos `listed`/`remote` no confirman
-vigencia independiente ni elegibilidad desde México. Las pausas y cuotas son en
-memoria, no coordinan procesos diferentes. El timeout es por operación de socket,
-no un límite total contra respuestas lentas. No agregar un scheduler que omita
-esas limitaciones. Detalles en [JOB_SOURCES](docs/JOB_SOURCES.md).
+vigencia independiente ni elegibilidad desde México. Las pausas y cuotas de
+`discover` son en memoria, no coordinan procesos diferentes; su timeout es por
+operación de socket. `automation run` añade estado durable, mutex y presupuesto
+con worker terminable, descritos abajo. No invocar lectores independientes para
+omitir esos límites. Detalles en [JOB_SOURCES](docs/JOB_SOURCES.md).
 
 ## SQLite y elegibilidad — Fase 3
 
@@ -60,3 +61,23 @@ verifica y publica exclusivamente un destino nuevo. Una copia manual de una base
 antigua omite esa revocación y no es un procedimiento seguro de recuperación.
 No hay coordinación global entre clones independientes ni transporte distribuido.
 Operación, privacidad y comprobaciones en [RESUMES_CANDIDACIES](docs/RESUMES_CANDIDACIES.md).
+
+## Ejecución y avisos — Fase 5
+
+`automation run` exige la política segura y un home externo; mutex OS cubre
+migración/recuperación/búsqueda. Estados de backoff/Retry-After/pausa son durables
+para este comando. HTTP real se aísla en worker terminable con watchdog; no borrar
+locks ni usar discover paralelo para eludir límites. Cuotas no coordinan clones.
+Logs y health usan solo códigos/IDs/contadores, sin contenido privado o excepciones.
+
+Telegram es el único transporte saliente nuevo y solo admite avisos mínimos:
+activación+token/chat+`--notify` explícitos, host fijo sin redirects, intentos y
+presupuesto limitados, sin CV/URLs/contactos ni órdenes entrantes. Intención durable
+antes de red; una entrega ambigua no se reenvía. Restore revoca aprobaciones y
+marca avisos pendientes/en curso como ambiguos. No hay sender de candidaturas.
+
+Claude oficial queda manual/desactivado, con permisos read-only y herramientas
+denegadas, sin checkout del PR. Activar requiere environment y coste autorizados;
+el diff debe ser publicable porque upstream puede imprimirlo en logs. No hubo
+invocación real. Detalles: [AUTOMATION_MONITORING](docs/AUTOMATION_MONITORING.md)
+y [CLAUDE_REVIEW](docs/CLAUDE_REVIEW.md).
