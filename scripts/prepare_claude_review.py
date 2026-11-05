@@ -115,7 +115,13 @@ def runtime_selection(environ: Mapping[str, str]) -> dict:
     if (environ.get('GITHUB_API_URL') != 'https://api.github.com'
             or environ.get('GITHUB_SERVER_URL') != 'https://github.com'):
         raise PreparationError('github_host_unsupported')
-    if environ.get('ACTIONS_STEP_DEBUG', '').lower() == 'true':
+    # Keep secrets and variables separate: a false secret must not conceal an
+    # enabled variable. runner.debug/RUNNER_DEBUG also cover diagnostic reruns.
+    debug_signals = ('ACTIONS_STEP_DEBUG', 'ACTIONS_RUNNER_DEBUG', 'RUNNER_DEBUG',
+                     'REVIEW_DEBUG_VAR_STEP', 'REVIEW_DEBUG_SECRET_STEP',
+                     'REVIEW_DEBUG_VAR_RUNNER', 'REVIEW_DEBUG_SECRET_RUNNER',
+                     'REVIEW_RUNNER_DEBUG_CONTEXT')
+    if any(environ.get(name, '').strip().lower() in ('true', '1') for name in debug_signals):
         raise PreparationError('review_debug_logging_forbidden')
     if not environ.get('GH_TOKEN'):
         raise PreparationError('github_token_missing')

@@ -67,6 +67,31 @@ avanzó desde el despacho, hace falta un despacho nuevo. Una API inaccesible, un
 403, una respuesta inesperada o reglas no disponibles detienen la preparación;
 no se amplían permisos ni se intenta otro token.
 
+## Diagnósticos de Actions y límites de los logs
+
+Hardening L-02 consultado el 2026-11-05 contra la documentación oficial de
+[logs de depuración](https://docs.github.com/en/actions/how-tos/monitor-workflows/enable-debug-logging)
+y [disponibilidad de contextos](https://docs.github.com/en/actions/reference/workflows-and-actions/contexts).
+GitHub admite `ACTIONS_STEP_DEBUG` y `ACTIONS_RUNNER_DEBUG` tanto como secretos
+como variables, y permite activar diagnóstico al reejecutar un workflow. La
+precedencia oficial de secretos sobre variables no se utiliza para ocultar una
+señal: se comprueban por separado y cualquier valor `true` o `1` bloquea el flujo.
+
+Un primer paso, antes de checkout, rechaza esas cuatro entradas, las variables
+de entorno de Actions y `RUNNER_DEBUG`, además de `runner.debug`. El contexto del
+runner se consulta en pasos, donde GitHub lo admite. El preparador repite el
+control antes de acceder a la API, obtener el diff o publicar outputs; no basta
+con asignar `ACTIONS_STEP_DEBUG=false` en el job para apagar diagnósticos del runner.
+Un bloqueo termina con un código fijo y sin archivos, diff ni credenciales de
+revisión. Los artefactos siguen limitados a manifiesto e informe durante siete días.
+
+Estas defensas reducen exposición accidental; no demuestran redacción completa
+ni control sobre los logs internos de GitHub o del proveedor. La acción oficial
+continúa imprimiendo el prompt incluso sin diagnóstico. Es obligatorio revisar
+humanamente que el diff sea publicable antes de autorizar una futura ejecución,
+mantener los diagnósticos desactivados y no reejecutar con debug una revisión que
+contenga información reservada. No se ha invocado Claude para verificar este cambio.
+
 ## Aislamiento, datos y evidencia
 
 Solo se extraen del commit confiable dos archivos: el preparador y el prompt.
@@ -125,3 +150,6 @@ protección, contenido adversarial, límites, redirects, media, errores redactad
 publicación exclusiva y extracción de registros SDK sintéticos. Esto verifica
 preparación y validación local; no demuestra conectividad con Claude, uso real de
 credenciales, aprobación del environment o una revisión independiente de Claude.
+También cubren todas las señales de diagnóstico anteriores, conflicto entre
+variable activa y secreto desactivado, ausencia de lecturas API/outputs cuando se
+bloquea y funcionamiento normal con diagnóstico desactivado.
