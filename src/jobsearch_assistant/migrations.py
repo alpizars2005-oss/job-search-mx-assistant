@@ -9,16 +9,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
-def backup_database(source: Path, destination: Path) -> Path:
+def backup_database(source: Path, destination: Path, *, timeout=30, control=None) -> Path:
     """Copy a committed SQLite snapshot, including WAL, to a new private file.
 
     The caller must not use a write-locked source connection for backup. A
     separate reader also lets a migration snapshot schema 1 while its writer
     reservation prevents another process from changing it.
     """
+    if control is not None:
+        control.check()
     source = Path(source).resolve(strict=True)
     destination = Path(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -26,9 +28,10 @@ def backup_database(source: Path, destination: Path) -> Path:
     os.close(descriptor)
     reader = writer = None
     try:
-        reader = sqlite3.connect(source.as_uri() + '?mode=ro', uri=True, timeout=30)
-        writer = sqlite3.connect(destination, timeout=30)
-        reader.backup(writer)
+        reader = sqlite3.connect(source.as_uri() + '?mode=ro', uri=True, timeout=timeout)
+        writer = sqlite3.connect(destination, timeout=timeout)
+        progress = (lambda *_: control.check()) if control is not None else None
+        reader.backup(writer, pages=256, progress=progress, sleep=0.01)
         if writer.execute('PRAGMA integrity_check').fetchall() != [('ok',)]:
             raise sqlite3.DatabaseError('SQLite backup failed integrity verification')
         writer.close()
@@ -122,10 +125,13 @@ def restore_backup(source: Path, destination: Path) -> Path:
         connection.execute('PRAGMA journal_mode=DELETE')
         connection.execute('BEGIN IMMEDIATE')
         marker = connection.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()
-        if marker is None or marker[0] not in ('1', '2', str(SCHEMA_VERSION)):
+        if marker is None or marker[0] not in ('1', '2', '3', str(SCHEMA_VERSION)):
             raise ValueError('Unsupported SQLite schema version')
-        if marker[0] == str(SCHEMA_VERSION):
+        if marker[0] in ('3', str(SCHEMA_VERSION)):
             _invalidate_restored_workflow(connection)
+        if marker[0] == str(SCHEMA_VERSION):
+            from .notifications import invalidate_restored_notifications
+            invalidate_restored_notifications(connection)
         if (connection.execute('PRAGMA integrity_check').fetchall()[0][0] != 'ok'
                 or connection.execute('PRAGMA foreign_key_check').fetchall()):
             raise ValueError('Invalid restored SQLite database')
@@ -275,10 +281,21 @@ def _migrate_v2_to_v3(connection: sqlite3.Connection) -> None:
     """)
 
 
-def initialize_database(path: Path) -> None:
+def _migrate_v3_to_v4(connection: sqlite3.Connection) -> None:
+    from .automation_schema import create_automation_tables
+    from .notifications import create_notification_tables
+
+    create_automation_tables(connection)
+    create_notification_tables(connection)
+
+
+def initialize_database(path: Path, *, timeout=30, control=None) -> None:
     """Serialize initializers and commit schema+version together, or change nothing."""
+    if control is not None:
+        control.check()
+        timeout = min(timeout, control.remaining())
     path = Path(path)
-    connection = sqlite3.connect(path, timeout=30, isolation_level=None)
+    connection = sqlite3.connect(path, timeout=timeout, isolation_level=None)
     try:
         connection.execute('PRAGMA foreign_keys = ON')
         connection.execute('BEGIN IMMEDIATE')
@@ -289,6 +306,7 @@ def initialize_database(path: Path) -> None:
             _create_legacy_tables(connection)
             _migrate_v1_to_v2(connection)
             _migrate_v2_to_v3(connection)
+            _migrate_v3_to_v4(connection)
             connection.execute("INSERT INTO meta VALUES ('schema_version', ?)",
                                (str(SCHEMA_VERSION),))
         else:
@@ -297,16 +315,20 @@ def initialize_database(path: Path) -> None:
             marker = connection.execute(
                 "SELECT value FROM meta WHERE key='schema_version'"
             ).fetchone()
-            if marker is None or marker[0] not in ('1', '2', str(SCHEMA_VERSION)):
+            if marker is None or marker[0] not in ('1', '2', '3', str(SCHEMA_VERSION)):
                 raise ValueError('Unsupported SQLite schema version')
-            if marker[0] in ('1', '2'):
+            if marker[0] in ('1', '2', '3'):
                 destination = path.with_name(path.name + '.schema' + marker[0] + '-' + uuid.uuid4().hex + '.bak')
-                backup_database(path, destination)
+                backup_database(path, destination, timeout=timeout, control=control)
                 if marker[0] == '1':
                     _migrate_v1_to_v2(connection)
-                _migrate_v2_to_v3(connection)
+                if marker[0] in ('1', '2'):
+                    _migrate_v2_to_v3(connection)
+                _migrate_v3_to_v4(connection)
                 connection.execute("UPDATE meta SET value=? WHERE key='schema_version'",
                                    (str(SCHEMA_VERSION),))
+        if control is not None:
+            control.check()
         connection.commit()
     except BaseException:
         connection.rollback()

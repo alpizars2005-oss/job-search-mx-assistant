@@ -35,13 +35,15 @@ def _fingerprint(value: Any) -> str:
 
 
 class ApplicationDatabase:
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, *, timeout: float = 30, control=None) -> None:
         self.path = Path(path)
+        self.timeout, self.control = timeout, control
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.initialize()
 
     def connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.path, timeout=30)
+        timeout = self.timeout if self.control is None else min(self.timeout, max(0.01, self.control.remaining()))
+        connection = sqlite3.connect(self.path, timeout=timeout)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys = ON")
         return connection
@@ -57,38 +59,42 @@ class ApplicationDatabase:
             connection.close()
 
     def initialize(self) -> None:
-        initialize_database(self.path)
+        initialize_database(self.path, timeout=self.timeout, control=self.control)
 
     def upsert_vacancy(self, job: NormalizedJob) -> int:
         """Update source evidence atomically, retaining the stable vacancy ID."""
-        payload = _canonical_json(asdict(job))
         with self._connection() as connection:
             connection.execute('BEGIN IMMEDIATE')
-            previous = connection.execute(
-                'SELECT id, job_json FROM vacancies WHERE source=? AND source_board=? AND source_job_id=?',
-                (job.source, job.source_board, job.source_job_id),
-            ).fetchone()
-            if previous:
-                old_data = json.loads(previous['job_json'])
-                new_data = asdict(job)
-                old_data.pop('retrieved_at', None)
-                new_data.pop('retrieved_at', None)
-                if content_digest(old_data) != content_digest(new_data):
-                    managed = connection.execute('SELECT * FROM candidacies WHERE vacancy_id=?',
-                                                 (previous['id'],)).fetchone()
-                    if managed:
-                        require_dry_run()
-                        self._invalidate_candidacy(connection, managed, 'vacancy_changed')
-            connection.execute('''
-                INSERT INTO vacancies(source, source_board, source_job_id, job_json)
-                VALUES (?, ?, ?, ?)
-                ON CONFLICT(source, source_board, source_job_id)
-                DO UPDATE SET job_json=excluded.job_json
-            ''', (job.source, job.source_board, job.source_job_id, payload))
-            row = connection.execute('''
-                SELECT id FROM vacancies WHERE source=? AND source_board=? AND source_job_id=?
-            ''', (job.source, job.source_board, job.source_job_id)).fetchone()
-            return int(row[0])
+            return self._upsert_vacancy_on_connection(connection, job)
+
+    def _upsert_vacancy_on_connection(self, connection, job: NormalizedJob) -> int:
+        """Reuse the same validation/invalidation in a larger local transaction."""
+        payload = _canonical_json(asdict(job))
+        previous = connection.execute(
+            'SELECT id, job_json FROM vacancies WHERE source=? AND source_board=? AND source_job_id=?',
+            (job.source, job.source_board, job.source_job_id),
+        ).fetchone()
+        if previous:
+            old_data = json.loads(previous['job_json'])
+            new_data = asdict(job)
+            old_data.pop('retrieved_at', None)
+            new_data.pop('retrieved_at', None)
+            if content_digest(old_data) != content_digest(new_data):
+                managed = connection.execute('SELECT * FROM candidacies WHERE vacancy_id=?',
+                                             (previous['id'],)).fetchone()
+                if managed:
+                    require_dry_run()
+                    self._invalidate_candidacy(connection, managed, 'vacancy_changed')
+        connection.execute('''
+            INSERT INTO vacancies(source, source_board, source_job_id, job_json)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(source, source_board, source_job_id)
+            DO UPDATE SET job_json=excluded.job_json
+        ''', (job.source, job.source_board, job.source_job_id, payload))
+        row = connection.execute('''
+            SELECT id FROM vacancies WHERE source=? AND source_board=? AND source_job_id=?
+        ''', (job.source, job.source_board, job.source_job_id)).fetchone()
+        return int(row[0])
 
     def get_vacancy(self, vacancy_id: int) -> NormalizedJob | None:
         with self._connection() as connection:
@@ -113,41 +119,44 @@ class ApplicationDatabase:
         profile, including evidence and retrieval time, with canonical JSON.
         Divergent results for the same inputs/version are rejected explicitly.
         """
+        with self._connection() as connection:
+            connection.execute('BEGIN IMMEDIATE')
+            return self._save_evaluation_on_connection(connection, vacancy_id, profile, result, job=job)
+
+    def _save_evaluation_on_connection(self, connection, vacancy_id, profile, result, *, job=None):
         profile_data = profile.to_dict()
         profile_json = _canonical_json(profile_data)
         result_json = _canonical_json(result.to_dict())
-        with self._connection() as connection:
-            connection.execute('BEGIN IMMEDIATE')
-            vacancy = connection.execute('SELECT * FROM vacancies WHERE id=?',
-                                         (vacancy_id,)).fetchone()
-            if vacancy is None:
-                raise ValueError('Unknown vacancy')
-            if job is not None:
-                if (job.source, job.source_board, job.source_job_id) != (
-                    vacancy['source'], vacancy['source_board'], vacancy['source_job_id']
-                ):
-                    raise ValueError('Evaluated job does not match vacancy identity')
-                job_data = asdict(job)
-            else:
-                job_data = json.loads(vacancy['job_json'])
-            job_json = _canonical_json(job_data)
-            input_fingerprint = _fingerprint({'job': job_data, 'profile': profile_data})
-            existing = connection.execute('''
-                SELECT id, evaluation_json FROM evaluations
-                WHERE vacancy_id=? AND algorithm_version=? AND input_fingerprint=?
-            ''', (vacancy_id, result.algorithm_version, input_fingerprint)).fetchone()
-            if existing:
-                if existing['evaluation_json'] != result_json:
-                    raise ValueError('Conflicting evaluation for the same inputs and algorithm version')
-                return int(existing['id'])
-            cursor = connection.execute('''
-                INSERT INTO evaluations(
-                    vacancy_id, algorithm_version, profile_fingerprint, input_fingerprint,
-                    job_snapshot_json, profile_snapshot_json, evaluation_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (vacancy_id, result.algorithm_version, _fingerprint(profile_data),
-                  input_fingerprint, job_json, profile_json, result_json))
-            return int(cursor.lastrowid)
+        vacancy = connection.execute('SELECT * FROM vacancies WHERE id=?',
+                                     (vacancy_id,)).fetchone()
+        if vacancy is None:
+            raise ValueError('Unknown vacancy')
+        if job is not None:
+            if (job.source, job.source_board, job.source_job_id) != (
+                vacancy['source'], vacancy['source_board'], vacancy['source_job_id']
+            ):
+                raise ValueError('Evaluated job does not match vacancy identity')
+            job_data = asdict(job)
+        else:
+            job_data = json.loads(vacancy['job_json'])
+        job_json = _canonical_json(job_data)
+        input_fingerprint = _fingerprint({'job': job_data, 'profile': profile_data})
+        existing = connection.execute('''
+            SELECT id, evaluation_json FROM evaluations
+            WHERE vacancy_id=? AND algorithm_version=? AND input_fingerprint=?
+        ''', (vacancy_id, result.algorithm_version, input_fingerprint)).fetchone()
+        if existing:
+            if existing['evaluation_json'] != result_json:
+                raise ValueError('Conflicting evaluation for the same inputs and algorithm version')
+            return int(existing['id'])
+        cursor = connection.execute('''
+            INSERT INTO evaluations(
+                vacancy_id, algorithm_version, profile_fingerprint, input_fingerprint,
+                job_snapshot_json, profile_snapshot_json, evaluation_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (vacancy_id, result.algorithm_version, _fingerprint(profile_data),
+              input_fingerprint, job_json, profile_json, result_json))
+        return int(cursor.lastrowid)
 
     def list_evaluations(self, vacancy_id: int) -> list[dict[str, Any]]:
         with self._connection() as connection:
