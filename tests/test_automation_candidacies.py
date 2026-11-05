@@ -1,4 +1,5 @@
 import sqlite3
+from contextlib import closing
 from dataclasses import replace
 
 from jobsearch_assistant.automation_store import AutomationStore
@@ -39,7 +40,7 @@ class AutomationCandidacyTests(WorkflowCase):
         restored = self.root / 'restored.sqlite3'
         backup_database(self.database.path, backup)
         restore_backup(backup, restored)
-        with sqlite3.connect(restored) as connection:
+        with closing(sqlite3.connect(restored)) as connection:
             self.assertEqual(connection.execute("SELECT value FROM meta WHERE key='schema_version'").fetchone()[0], '4')
             self.assertEqual(connection.execute('SELECT status FROM candidacy_authorizations WHERE authorization_id=?',
                                                 (authorization,)).fetchone()[0], 'invalidated')

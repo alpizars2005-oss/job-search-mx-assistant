@@ -20,7 +20,10 @@ class SlowTransport:
         self.marker = marker
 
     def __call__(self, url, timeout, max_bytes):
-        Path(self.marker).write_text(str(os.getpid()), encoding='ascii')
+        marker = Path(self.marker)
+        prepared = marker.with_name(marker.name + '.prepared')
+        prepared.write_text(str(os.getpid()), encoding='ascii')
+        os.replace(prepared, marker)
         time.sleep(60)
         return HttpResponse(200, {}, b'{}')
 
