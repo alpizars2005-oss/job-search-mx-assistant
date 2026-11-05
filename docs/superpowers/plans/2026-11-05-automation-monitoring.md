@@ -35,10 +35,10 @@ SafeHttpClient acepta `control=None`, `state_callback=None`; métodos
 `export_state()->dict` y `import_state(payload)` para failures y tiempos UTC.
 Callback recibe export_state después de reservas/red/cooldown; sin contenido HTTP.
 
-- [ ] RED: lock entre dos procesos, recuperación tras kill, cancelación, respuesta
+- [x] RED: lock entre dos procesos, recuperación tras kill, cancelación, respuesta
   lenta, Retry-After importado, cuota previa a red y deadline en backoff.
-- [ ] GREEN: implementar APIs, conservar cliente anterior sin opciones nuevas.
-- [ ] Verificar tests nuevos y suite; entregar informe y commit atómico por root.
+- [x] GREEN: implementar APIs, conservar cliente anterior sin opciones nuevas.
+- [x] Verificar tests nuevos y suite; entregar informe y commit atómico por root.
 
 ### Task 2: outbox Telegram (dominio independiente B)
 
@@ -51,10 +51,10 @@ ENABLED/TOKEN/CHAT_ID. `NotificationDispatcher(database,config,*,transport=None,
 control=None).drain(authorized=False)->dict` con métricas redactadas. No acceso al
 CV, perfil, títulos/URLs de vacantes; locks del dispatcher seguros entre procesos.
 
-- [ ] RED: sin token/permiso, dedup/reinicio/concurrencia, 429 Retry-After, 5xx,
+- [x] RED: sin token/permiso, dedup/reinicio/concurrencia, 429 Retry-After, 5xx,
   transporte ambiguo, límites, redirección, texto privado nunca aparece.
-- [ ] GREEN: outbox persistente, presupuesto, default disabled y no envío en tests.
-- [ ] Verificar, informe y commit por root; root incorpora migración4.
+- [x] GREEN: outbox persistente, presupuesto, default disabled y no envío en tests.
+- [x] Verificar, informe y commit por root; root incorpora migración4.
 
 ### Task 3: Claude preparado (dominio independiente C)
 
@@ -62,12 +62,12 @@ Files: workflow manual, `scripts/prepare_claude_review.py`, prompts de auditorí
 `docs/CLAUDE_REVIEW.md`, pruebas del preparador.
 Interfaces: sin dependencias de runtime; nada se invoca automáticamente.
 
-- [ ] Investigar acción oficial, inputs, permisos, amenazas y SHA actual.
-- [ ] RED: selección de PR/SHA, rechazo fork y cambio de SHA, diff excesivo y
+- [x] Investigar acción oficial, inputs, permisos, amenazas y SHA actual.
+- [x] RED: selección de PR/SHA, rechazo fork y cambio de SHA, diff excesivo y
   código/mensajes maliciosos; probar efectos del preparador sin red real.
-- [ ] GREEN: workflow opt-in manual protegido, sin ejecutar árbol del PR ni
+- [x] GREEN: workflow opt-in manual protegido, sin ejecutar árbol del PR ni
   herramientas de modificación, informe ligado a SHA; ausencia de secreto explícita.
-- [ ] Verificar sintaxis/comportamiento; documentar no ejecución real de Claude.
+- [x] Verificar sintaxis/comportamiento; documentar no ejecución real de Claude.
 
 ### Task 4: persistencia y orquestación (root)
 
@@ -77,26 +77,26 @@ Interfaces: `AutomationStore(database)` start/recover/observe/finish/states/hist
 `AutomationRunner(database,profile,configs,policy,*,control,client=None,language='es')`
 con `run()->dict` redactado. APIs exactas se fijan en este módulo antes de CLI.
 
-- [ ] RED: schema3 preservado/rollback/backup, operación atómica, repetición,
+- [x] RED: schema3 preservado/rollback/backup, operación atómica, repetición,
   changed/profile-only/new, recuperación y ninguna modificación de candidaturas.
-- [ ] GREEN: esquema4 aditivo, reutilizar lógica de upsert/evaluation dentro de una
+- [x] GREEN: esquema4 aditivo, reutilizar lógica de upsert/evaluation dentro de una
   conexión común; findings+outbox en la misma transacción.
-- [ ] RED/GREEN: fallos parciales/paginación, fuente persistida pausada, deadline,
+- [x] RED/GREEN: fallos parciales/paginación, fuente persistida pausada, deadline,
   cancelación, reinicio, no datos privados en resúmenes y selección habilitada.
-- [ ] Ejecutar suites completas y commit.
+- [x] Ejecutar suites completas y commit.
 
 ### Task 5: CLI y entrega (root)
 
 Files: `automation_cli.py`, CLI parser/dispatch, docs operativas, PLAN/README/
 SECURITY/PRIVACY/ARCHITECTURE, CI y pruebas de interfaces.
 
-- [ ] RED/GREEN: `automation run/health/runs/show`; lock antes de migración,
+- [x] RED/GREEN: `automation run/health/runs/show`; lock antes de migración,
   perfil estricto (no fallback silencioso), presupuesto validado, señales,
   códigos 0 completo/1 parcial/2 configuración/3 lock/4 deadline/130 interrupción.
-- [ ] Integrar notificaciones explícitas, scan de candidaturas por ID/revisión;
+- [x] Integrar notificaciones explícitas, scan de candidaturas por ID/revisión;
   ninguna generación/aprobación automática. Logs JSON allowlist.
-- [ ] Documentar comandos, seguridad/rollback/checklist y requisitos futuros de
+- [x] Documentar comandos, seguridad/rollback/checklist y requisitos futuros de
   PizzaLab, sin crear/instalar timers de Fase 6.
-- [ ] Suite unittest/pytest/pip check/compileall y smoke CLI/GUI existente.
+- [x] Suite unittest/pytest/pip check/compileall y smoke CLI/GUI existente.
 - [ ] Revisión independiente de rama, corregir hallazgos verificables; commits.
 - [ ] PR a main y artefacto adjunto, verificar seis jobs del HEAD final, no fusionar.

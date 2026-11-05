@@ -33,4 +33,3 @@ def create_automation_tables(connection):
         last_status TEXT NOT NULL
     )''')
     connection.execute('''CREATE INDEX automation_runs_started ON automation_runs(started_at)''')
-

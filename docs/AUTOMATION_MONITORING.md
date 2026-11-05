@@ -228,3 +228,8 @@ incluyen datos privados en claro; revisar permisos POSIX y ACL Windows.
 Codex Cloud sigue siendo un entorno de desarrollo, no alojamiento permanente.
 Los resultados finales de unittest/pytest, revisión y seis jobs CI del commit
 publicado se registran en el PR; las pruebas de CI no dependen de servicios externos.
+
+Verificación local previa a revisión: Python 3.12, **366 unittest** y
+**366 pytest +596 subtests**, aprobados. `pip check` y compilación aprobados.
+Ruff E9/F no detecta errores nuevos; existe F401 histórico en
+`scripts/auto_update.py`, fuera de alcance y sin modificar.
