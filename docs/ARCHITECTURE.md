@@ -44,7 +44,7 @@ para pruebas offline. Ver [contrato y operación](JOB_SOURCES.md).
 
 - `eligibility.py`: requisitos excluyentes, negaciones y evidencia de campos o
   fragmentos, conservando desconocidos y contradicciones.
-- `matching.py`: compatibilidad determinista `matching_v7` y explicación bilingüe.
+- `matching.py`: compatibilidad determinista `matching_v8` y explicación bilingüe.
 - `evaluator.py`: entrada compatible al motor nuevo; `evaluate_job_legacy`
   conserva el algoritmo histórico como referencia explícita.
 - `migrations.py`: esquema 2, migración 1→2 transaccional, backup SQLite previo

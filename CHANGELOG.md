@@ -1,3 +1,12 @@
+## Corrección R-01c — matching_v8
+- Reconocer restricciones explícitas adicionales de contratación en inglés/español,
+  etiquetas solo/EU y country-only con contexto de candidatos, sin excluir menciones
+  incidentales, condiciones pendientes o alternativas México.
+- Invalidar la reutilización de evaluaciones v7 mediante matching_v8; conservar
+  bytes, hashes e IDs históricos legacy_v1–v7 y reportes ya publicados.
+- Revisar manualmente los reportes high_priority del piloto: reglas lingüísticas
+  acotadas, sin certificación jurídica ni reevaluación histórica automática.
+
 ## Corrección preproducción R-01b y N-03
 
 - matching_v7 reconoce country-only en condiciones de contratación aplicables al
