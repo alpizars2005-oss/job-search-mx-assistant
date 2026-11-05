@@ -163,11 +163,12 @@ class CandidacyWorkflow:
         if row is None or row['status'] not in ('saved', 'interested'):
             raise WorkflowError('tracker_blocks_authorization')
 
-    def create(self, vacancy_id: int, resume_version_id: str, content: str) -> int:
+    def create(self, vacancy_id: int, resume_version_id: str, content: str | None) -> int:
         require_dry_run()
         _identifier(vacancy_id)
         _hash(resume_version_id)
-        _content(content)
+        if content is not None:
+            _content(content)
         with self.database._connection() as connection:
             connection.execute('BEGIN IMMEDIATE')
             existing = connection.execute('SELECT * FROM candidacies WHERE vacancy_id=?',
@@ -176,21 +177,33 @@ class CandidacyWorkflow:
                 self._critical(connection, existing)
                 return int(existing['id'])
             job = self._vacancy(connection, vacancy_id)
+            identity = legacy_identity(job.url or '', job.company, job.title or 'Untitled role')
+            application = connection.execute("""
+                SELECT a.* FROM applications a JOIN application_identities i ON i.application_id=a.id
+                WHERE i.identity=?
+            """, (identity,)).fetchone()
+            if application:
+                managed = connection.execute('SELECT * FROM candidacies WHERE application_id=?',
+                                             (application['id'],)).fetchone()
+                if managed:
+                    # Check the existing binding before touching any requested
+                    # CV, including a source alias of the managed application.
+                    self._critical(connection, managed)
+                    raise WorkflowError('application_already_managed')
+                if (self._job_values(job) != tuple(application[key] for key in (
+                        'title', 'company', 'location', 'url', 'description'))
+                        and application['status'] not in ('saved', 'interested')):
+                    raise WorkflowError('historical_application_conflict')
             metadata = self._resume(resume_version_id, job)
+            if content is None:
+                from .drafts import build_draft
+                content = _content(build_draft(job, metadata))
             record = ApplicationRecord(None, JobPosting(
                 title=job.title or 'Untitled role', company=job.company,
                 location=', '.join(job.locations), url=job.url or '',
                 description=job.description or ''),
-                EvaluationResult(0, 'insufficient_information', algorithm_version='matching_v2'))
+                EvaluationResult(0, 'insufficient_information', algorithm_version='unevaluated'))
             application_id = self.database._add_on_connection(connection, record)
-            # Two source IDs can refer to the same tracker identity. Preserve the
-            # original managed application instead of creating a second draft.
-            managed = connection.execute('SELECT * FROM candidacies WHERE application_id=?',
-                                         (application_id,)).fetchone()
-            if managed:
-                if managed['vacancy_id'] == vacancy_id:
-                    return int(managed['id'])
-                raise WorkflowError('application_already_managed')
             timestamp = _now()
             cursor = connection.execute('''
                 INSERT INTO candidacies(application_id, vacancy_id, resume_version_id,
@@ -199,6 +212,8 @@ class CandidacyWorkflow:
             ''', (application_id, vacancy_id, resume_version_id, content, job.company, timestamp, timestamp))
             candidacy_id = int(cursor.lastrowid)
             candidacy = self._row(connection, candidacy_id)
+            if application:
+                self._adopt_application(connection, candidacy, application, job)
             snapshot = self._snapshot(candidacy, job, metadata)
             connection.execute('''
                 INSERT INTO candidacy_revisions(candidacy_id, revision, snapshot_json, created_at)
@@ -206,6 +221,30 @@ class CandidacyWorkflow:
             ''', (candidacy_id, canonical_json(snapshot), timestamp))
             self.database._event(connection, candidacy, 'created', snapshot)
             return candidacy_id
+
+    @staticmethod
+    def _job_values(job: NormalizedJob) -> tuple[str, ...]:
+        return (job.title or 'Untitled role', job.company, ', '.join(job.locations),
+                job.url or '', job.description or '')
+
+    def _adopt_application(self, connection: sqlite3.Connection, candidacy: sqlite3.Row,
+                           application: sqlite3.Row, job: NormalizedJob) -> None:
+        values = self._job_values(job)
+        if values == tuple(application[key] for key in ('title', 'company', 'location', 'url', 'description')):
+            return
+        pending = EvaluationResult(0, 'insufficient_information', algorithm_version='unevaluated')
+        self.database._event(connection, candidacy, 'application_snapshot_preserved', {
+            'reason': 'legacy_adoption', 'application': dict(application),
+            'target_vacancy_id': candidacy['vacancy_id'], 'target_vacancy': asdict(job),
+            'target_evaluation': pending.to_dict(),
+        })
+        # Preserve IDs, notes, status and both historical tracker dates. The
+        # candidacy/event timestamps separately record the explicit adoption.
+        connection.execute("""
+            UPDATE applications SET title=?, company=?, location=?, url=?, description=?,
+                score=?, recommendation=?, evaluation_json=? WHERE id=?
+        """, (*values, pending.score, pending.recommendation, canonical_json(pending.to_dict()),
+              application['id']))
 
     def get(self, candidacy_id: int) -> dict[str, Any] | None:
         _identifier(candidacy_id)
@@ -247,8 +286,13 @@ class CandidacyWorkflow:
         return sorted(result, key=lambda item: (item['created_at'], item['type'], str(item.get('id', ''))))
 
     def edit(self, candidacy_id: int, *, resume_version_id: str | None = None,
-             content: str | None = None, vacancy_id: int | None = None) -> bool:
+             content: str | None = None, vacancy_id: int | None = None,
+             regenerate_content: bool = False) -> bool:
         require_dry_run()
+        if type(regenerate_content) is not bool:
+            raise WorkflowError('invalid_regenerate_content')
+        if regenerate_content and content is not None:
+            raise WorkflowError('conflicting_content_changes')
         if resume_version_id is not None:
             _hash(resume_version_id)
         if content is not None:
@@ -261,17 +305,12 @@ class CandidacyWorkflow:
             new_version = candidacy['resume_version_id'] if resume_version_id is None else resume_version_id
             new_content = candidacy['content'] if content is None else content
             new_vacancy = candidacy['vacancy_id'] if vacancy_id is None else vacancy_id
-            if (new_version, new_content, new_vacancy) == (
-                    candidacy['resume_version_id'], candidacy['content'], candidacy['vacancy_id']):
-                self._critical(connection, candidacy)
-                return False
-            # Validate the replacement first, but a broken current document must
-            # still revoke its old capability before any error escapes.
+            current_snapshot = None
             try:
-                self._critical(connection, candidacy)
+                current_snapshot = self._critical(connection, candidacy)
             except WorkflowError:
-                # A valid new version is allowed to repair a damaged draft. The
-                # revocation above has already committed; reserve a writer again.
+                # A valid new version can repair a damaged draft only after
+                # its old permission has been persistently revoked.
                 connection.execute('BEGIN IMMEDIATE')
                 latest = self._row(connection, candidacy_id)
                 if any(latest[key] != candidacy[key] for key in (
@@ -280,8 +319,21 @@ class CandidacyWorkflow:
                 candidacy = latest
                 if new_version == candidacy['resume_version_id']:
                     raise
+            if (not regenerate_content and (new_version, new_content, new_vacancy) == (
+                    candidacy['resume_version_id'], candidacy['content'], candidacy['vacancy_id'])):
+                return False
             job = self._vacancy(connection, new_vacancy)
-            metadata = self._resume(new_version, job)
+            if (current_snapshot is not None and new_version == candidacy['resume_version_id']
+                    and new_vacancy == candidacy['vacancy_id']):
+                metadata = current_snapshot['resume']
+            else:
+                metadata = self._resume(new_version, job)
+            if regenerate_content:
+                from .drafts import build_draft
+                new_content = _content(build_draft(job, metadata))
+            if (new_version, new_content, new_vacancy) == (
+                    candidacy['resume_version_id'], candidacy['content'], candidacy['vacancy_id']):
+                return False
             conflict = connection.execute('SELECT id FROM candidacies WHERE vacancy_id=? AND id!=?',
                                           (new_vacancy, candidacy_id)).fetchone()
             if conflict:
@@ -318,8 +370,7 @@ class CandidacyWorkflow:
         """, (candidacy['id'], candidacy['revision'])).fetchone()
         previous = json.loads(revision['snapshot_json'])
         fields = ('title', 'company', 'location', 'url', 'description')
-        values = (job.title or 'Untitled role', job.company, ', '.join(job.locations),
-                  job.url or '', job.description or '')
+        values = self._job_values(job)
         changed = (vacancy_id != candidacy['vacancy_id']
                    or vacancy_digest(job) != previous['vacancy_digest']
                    or values != tuple(application[field] for field in fields))

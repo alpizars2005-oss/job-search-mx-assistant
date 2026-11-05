@@ -44,7 +44,9 @@ class FileResumes:
                         language='en', format='txt', vacancy_key=vacancy_key(job),
                         vacancy_digest=vacancy_digest(job), claim_ids=['project-1'],
                         created_at='2026-11-04T12:00:00Z', text=text,
-                        candidate_name='Synthetic Candidate')
+                        candidate_name='Synthetic Candidate',
+                        claims=[{'id': 'project-1', 'kind': 'project',
+                                 'text': 'Synthetic Python project', 'evidence_ids': ['evidence-1']}])
         version_id = content_digest(metadata)
         metadata['version_id'] = version_id
         (self.root / (version_id + '.txt')).write_bytes(document)
@@ -361,3 +363,196 @@ print(workflow.create(int(sys.argv[4]), sys.argv[5], 'Synthetic cover text'))
             with self.assertRaises(WorkflowError) as raised:
                 self.workflow.review(candidacy_id)
         self.assertNotIn('/private', str(raised.exception))
+
+
+class BackendIntegrationBoundaryTests(WorkflowCase):
+    def test_generated_content_and_resume_regeneration_are_verified_inside_writer_transaction(self):
+        from jobsearch_assistant.drafts import build_draft
+        from contextlib import closing
+        metadata = self.resumes.verify_version(self.version['version_id'])
+        observed = []
+        def locked_generation(job, version):
+            observed.append(version['version_id'])
+            with closing(sqlite3.connect(self.database.path, timeout=0)) as independent:
+                with self.assertRaises(sqlite3.OperationalError):
+                    independent.execute('BEGIN IMMEDIATE')
+            return build_draft(job, version)
+        with patch('jobsearch_assistant.drafts.build_draft', side_effect=locked_generation):
+            candidacy_id = self.workflow.create(self.vacancy_id, self.version['version_id'], None)
+            expected = build_draft(self.job, metadata)
+            self.assertEqual(self.workflow.get(candidacy_id)['content'], expected)
+            self.assertFalse(self.workflow.edit(candidacy_id, regenerate_content=True))
+            self.workflow.edit(candidacy_id, content='Manual synthetic text')
+            self.assertTrue(self.workflow.edit(candidacy_id, regenerate_content=True))
+            self.assertEqual(self.workflow.get(candidacy_id)['content'], expected)
+        self.assertEqual(observed, [self.version['version_id']] * 3)
+
+    def test_existing_create_and_regeneration_guard_current_before_any_replacement_verification(self):
+        for operation in ('duplicate_create', 'regenerate_edit'):
+            with self.subTest(operation=operation):
+                candidacy_id = self.create()
+                auth = self.authorize(candidacy_id)
+                original_verify = self.resumes.verify_version
+                verified = []
+                def lazy_constructor_failure(version_id):
+                    verified.append(version_id)
+                    raise OSError('/private/store/construction/failure')
+                with patch.object(self.resumes, 'verify_version', side_effect=lazy_constructor_failure):
+                    with self.assertRaises(WorkflowError):
+                        if operation == 'duplicate_create':
+                            self.workflow.create(self.vacancy_id, self.version['version_id'], None)
+                        else:
+                            self.workflow.edit(candidacy_id, resume_version_id=self.version['version_id'],
+                                               regenerate_content=True)
+                self.assertEqual(verified, [self.version['version_id']])
+                original_verify(self.version['version_id'])
+                with self.assertRaises(WorkflowError):
+                    self.workflow.simulate(auth)
+                if operation == 'duplicate_create':
+                    # A real content edit gives the next case an independent
+                    # revision; an invalidated capability is never renewed.
+                    self.workflow.edit(candidacy_id, content='Next independent synthetic revision')
+
+    def test_duplicate_application_alias_checks_current_binding_before_requested_cv(self):
+        candidacy_id = self.create()
+        auth = self.authorize(candidacy_id)
+        alias = replace(self.job, source_job_id='alias-job', company='Alias Synthetic Company')
+        alias_id = self.database.upsert_vacancy(alias)
+        alias_version = self.resumes.create_version(alias)
+        verified = []
+        def failed_current_verifier(version_id):
+            verified.append(version_id)
+            raise WorkflowError('resume_integrity_failed')
+        with patch.object(self.resumes, 'verify_version', side_effect=failed_current_verifier):
+            with self.assertRaises(WorkflowError):
+                self.workflow.create(alias_id, alias_version['version_id'], None)
+        self.assertEqual(verified, [self.version['version_id']])
+        with self.assertRaises(WorkflowError):
+            self.workflow.simulate(auth)
+        self.assertEqual(len(self.workflow.list()), 1)
+
+    def test_invalid_generation_arguments_do_not_revoke_valid_approval(self):
+        candidacy_id = self.create()
+        auth = self.authorize(candidacy_id)
+        original = self.workflow.history(candidacy_id)
+        for arguments in ({'regenerate_content': 1}, {'regenerate_content': 'true'},
+                          {'regenerate_content': True, 'content': 'Explicit synthetic text'}):
+            with self.subTest(arguments=arguments), self.assertRaises(WorkflowError):
+                self.workflow.edit(candidacy_id, **arguments)
+        self.assertEqual(self.workflow.history(candidacy_id), original)
+        self.assertIs(self.workflow.simulate(auth)['submitted'], False)
+
+    def test_invalid_requested_replacement_keeps_valid_current_authorization(self):
+        candidacy_id = self.create()
+        auth = self.authorize(candidacy_id)
+        original = self.workflow.history(candidacy_id)
+        with self.assertRaises(WorkflowError):
+            self.workflow.edit(candidacy_id, resume_version_id='0' * 64, regenerate_content=True)
+        self.assertEqual(self.workflow.history(candidacy_id), original)
+        self.assertIs(self.workflow.simulate(auth)['submitted'], False)
+
+    def test_initial_legacy_adoption_reconciles_current_job_preserving_old_row_and_dates(self):
+        for status in ('saved', 'interested'):
+            with self.subTest(status=status):
+                target = replace(self.job, source_job_id='adopt-' + status,
+                                 company='New Synthetic Company', title='Senior Rust Director',
+                                 description='New synthetic Rust requirements',
+                                 url='https://example.test/Jobs/Case-ID-' + status)
+                target_id = self.database.upsert_vacancy(target)
+                version = self.resumes.create_version(target)
+                old = ApplicationRecord(None, JobPosting(title='Junior Python Developer',
+                    company='Old Synthetic Company', url=target.url, description='Old Python requirements'),
+                    EvaluationResult(95, 'high_priority', reasons=['Only Old Synthetic Company fits']),
+                    status=status, notes='Preserved synthetic note',
+                    created_at='2024-01-02T03:04:05Z', updated_at='2024-02-03T04:05:06Z')
+                application_id = self.database.add(old)
+                with self.database._connection() as connection:
+                    previous = dict(connection.execute('SELECT * FROM applications WHERE id=?',
+                                                       (application_id,)).fetchone())
+                candidacy_id = self.workflow.create(target_id, version['version_id'], 'Synthetic adoption text')
+                result = next(item for item in self.database.list() if item.id == application_id)
+                self.assertEqual(result.job.company, target.company)
+                self.assertEqual(result.job.title, target.title)
+                self.assertEqual(result.job.description, target.description)
+                self.assertEqual(result.evaluation.recommendation, 'insufficient_information')
+                self.assertEqual(result.evaluation.algorithm_version, 'unevaluated')
+                self.assertEqual(result.status, status)
+                self.assertEqual(result.notes, old.notes)
+                self.assertEqual(result.created_at, old.created_at)
+                self.assertEqual(result.updated_at, old.updated_at)
+                preserved = [item for item in self.workflow.history(candidacy_id)
+                             if item.get('event_type') == 'application_snapshot_preserved']
+                self.assertEqual(preserved[-1]['snapshot']['application'], previous)
+                self.assertEqual(preserved[-1]['snapshot']['target_vacancy'], json.loads(canonical_json(target.__dict__)))
+                reviewed = self.workflow.review(candidacy_id)
+                self.assertEqual(reviewed['snapshot']['company'], result.job.company)
+                self.assertEqual(reviewed['snapshot']['vacancy']['title'], result.job.title)
+
+    def test_mismatched_applied_and_later_legacy_adoptions_are_rejected_without_history(self):
+        for status in ('applied', 'screening', 'interview', 'offer', 'rejected', 'withdrawn'):
+            with self.subTest(status=status):
+                target = replace(self.job, source_job_id='historical-' + status,
+                                 company='New Synthetic Company', url='https://example.test/historical-' + status)
+                target_id = self.database.upsert_vacancy(target)
+                version = self.resumes.create_version(target)
+                application_id = self.database.add(ApplicationRecord(None,
+                    JobPosting(company='Previous Synthetic Company', url=target.url),
+                    EvaluationResult(95, 'high_priority'), status=status))
+                with self.database._connection() as connection:
+                    before = dict(connection.execute('SELECT * FROM applications WHERE id=?',
+                                                     (application_id,)).fetchone())
+                with self.assertRaises(WorkflowError):
+                    self.workflow.create(target_id, version['version_id'], 'Synthetic adoption text')
+                with self.database._connection() as connection:
+                    self.assertEqual(dict(connection.execute('SELECT * FROM applications WHERE id=?',
+                                                            (application_id,)).fetchone()), before)
+                    self.assertIsNone(connection.execute('SELECT id FROM candidacies WHERE application_id=?',
+                                                         (application_id,)).fetchone())
+                    self.assertEqual(connection.execute('SELECT COUNT(*) FROM candidacy_events').fetchone()[0], 0)
+
+    def test_same_content_legacy_adoption_preserves_exact_evaluation_json_even_when_applied(self):
+        for index, status in enumerate(('saved', 'interested', 'applied', 'offer')):
+            with self.subTest(status=status):
+                target = replace(self.job, source_job_id='exact-' + status,
+                                 url='https://example.test/exact-' + status)
+                vacancy_id = self.database.upsert_vacancy(target)
+                version = self.resumes.create_version(target)
+                application_id = self.database.add(ApplicationRecord(None,
+                    JobPosting(title=target.title, company=target.company,
+                               location=', '.join(target.locations), url=target.url, description=target.description),
+                    EvaluationResult(95, 'high_priority', reasons=['Exact synthetic job']), status=status))
+                with self.database._connection() as connection:
+                    connection.execute('UPDATE applications SET evaluation_json=? WHERE id=?',
+                        ('{ "score" : 95, "recommendation" : "high_priority", "reasons" : ["Exact synthetic job"] }', application_id))
+                    previous = dict(connection.execute('SELECT * FROM applications WHERE id=?',
+                                                       (application_id,)).fetchone())
+                candidacy_id = self.workflow.create(vacancy_id, version['version_id'], 'Synthetic adoption text')
+                with self.database._connection() as connection:
+                    self.assertEqual(dict(connection.execute('SELECT * FROM applications WHERE id=?',
+                                                            (application_id,)).fetchone()), previous)
+                self.assertFalse(any(item.get('event_type') == 'application_snapshot_preserved'
+                                     for item in self.workflow.history(candidacy_id)))
+
+    def test_new_application_placeholder_does_not_claim_matching_engine_execution(self):
+        candidacy_id = self.create()
+        application_id = self.workflow.get(candidacy_id)['application_id']
+        result = next(item for item in self.database.list() if item.id == application_id)
+        self.assertEqual(result.evaluation.recommendation, 'insufficient_information')
+        self.assertEqual(result.evaluation.algorithm_version, 'unevaluated')
+        self.assertEqual(result.evaluation.score, 0)
+
+    def test_legacy_reconciliation_failure_rolls_back_original_row_and_all_new_history(self):
+        application_id = self.database.add(ApplicationRecord(None,
+            JobPosting(company='Old Synthetic Company', url=self.job.url),
+            EvaluationResult(95, 'high_priority'), notes='Original synthetic notes'))
+        with self.database._connection() as connection:
+            original = dict(connection.execute('SELECT * FROM applications WHERE id=?', (application_id,)).fetchone())
+            connection.execute("""CREATE TRIGGER synthetic_adoption_failure BEFORE INSERT ON candidacy_revisions
+                BEGIN SELECT RAISE(ABORT, 'Synthetic adoption failure'); END""")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.create()
+        with self.database._connection() as connection:
+            self.assertEqual(dict(connection.execute('SELECT * FROM applications WHERE id=?',
+                                                    (application_id,)).fetchone()), original)
+            self.assertEqual(connection.execute('SELECT COUNT(*) FROM candidacies').fetchone()[0], 0)
+            self.assertEqual(connection.execute('SELECT COUNT(*) FROM candidacy_events').fetchone()[0], 0)
