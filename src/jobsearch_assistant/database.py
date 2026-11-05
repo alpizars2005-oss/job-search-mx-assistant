@@ -19,6 +19,7 @@ from .models import (
     JobPosting,
 )
 from .sources.models import NormalizedJob
+from .private_storage import private_path, private_parents, sqlite_private
 from .workflow_contracts import WorkflowError, content_digest, require_dry_run
 
 __all__ = ['SCHEMA_VERSION', 'ApplicationDatabase']
@@ -36,14 +37,14 @@ def _fingerprint(value: Any) -> str:
 
 class ApplicationDatabase:
     def __init__(self, path: Path, *, timeout: float = 30, control=None) -> None:
-        self.path = Path(path)
+        self.path = private_path(path)
         self.timeout, self.control = timeout, control
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        private_parents(self.path.parent)
         self.initialize()
 
     def connect(self) -> sqlite3.Connection:
         timeout = self.timeout if self.control is None else min(self.timeout, max(0.01, self.control.remaining()))
-        connection = sqlite3.connect(self.path, timeout=timeout)
+        connection = sqlite_private(self.path, timeout=timeout)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys = ON")
         return connection

@@ -203,11 +203,8 @@ def command_profile(args: argparse.Namespace) -> int:
         print(profile_path())
         return 0
     output = args.file
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(
-        json.dumps(load_profile().to_dict(), ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    from .private_storage import write_private
+    write_private(output, json.dumps(load_profile().to_dict(), ensure_ascii=False, indent=2).encode('utf-8'))
     print(output.resolve())
     return 0
 

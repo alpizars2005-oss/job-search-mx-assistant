@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import csv
 import json
+from io import StringIO
 from pathlib import Path
 
 from .models import ApplicationRecord
+from .private_storage import write_private
 
 
 _FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
@@ -20,8 +22,7 @@ def _csv_safe(value):
 
 
 def export_csv(records: list[ApplicationRecord], output: Path) -> Path:
-    output.parent.mkdir(parents=True, exist_ok=True)
-    with output.open("w", encoding="utf-8-sig", newline="") as handle:
+    with StringIO(newline='') as handle:
         writer = csv.DictWriter(
             handle,
             fieldnames=[
@@ -60,11 +61,11 @@ def export_csv(records: list[ApplicationRecord], output: Path) -> Path:
                 "updated_at": record.updated_at,
             }
             writer.writerow({key: _csv_safe(value) for key, value in row.items()})
+        write_private(output, handle.getvalue().encode('utf-8-sig'))
     return output
 
 
 def export_json(records: list[ApplicationRecord], output: Path) -> Path:
-    output.parent.mkdir(parents=True, exist_ok=True)
     payload = []
     for record in records:
         payload.append(
@@ -84,5 +85,5 @@ def export_json(records: list[ApplicationRecord], output: Path) -> Path:
                 "updated_at": record.updated_at,
             }
         )
-    output.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    write_private(output, json.dumps(payload, ensure_ascii=False, indent=2).encode('utf-8'))
     return output
