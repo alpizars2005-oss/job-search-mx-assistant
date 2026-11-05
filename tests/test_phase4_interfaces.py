@@ -15,6 +15,8 @@ from unittest.mock import patch
 
 from jobsearch_assistant.cli import main
 from jobsearch_assistant.config import data_home, database_path
+from jobsearch_assistant.database import ApplicationDatabase
+from jobsearch_assistant.models import ApplicationRecord, EvaluationResult, JobPosting
 
 
 class Phase4InterfaceTests(unittest.TestCase):
@@ -110,6 +112,27 @@ class Phase4InterfaceTests(unittest.TestCase):
         self.assertEqual(jobs[0]['job']['source'], 'manual')
         self.assertIn('manual', ' '.join(jobs[0]['job']['provenance']['description']))
 
+    def test_legacy_adoption_reconciles_visible_tracker_and_preserves_old_evaluation(self):
+        job_url = json.loads(self.posting.read_text(encoding='utf-8'))['url']
+        database = ApplicationDatabase(database_path())
+        old_id = database.add(ApplicationRecord(
+            id=None, job=JobPosting(title='Old junior role', company='Old Company', url=job_url,
+                                    description='Original posting'),
+            evaluation=EvaluationResult(95, 'high_priority', reasons=['Only original role fits']),
+            notes='Original manual note'))
+        candidacy, _ = self.prepare_draft()
+        current = self.json_command('candidacies', 'show', str(candidacy))
+        self.assertEqual(current['application_id'], old_id)
+        visible = database.list()[0]
+        self.assertEqual(visible.job.company, current['company'])
+        self.assertEqual(visible.job.title, 'Junior Python Developer')
+        self.assertEqual(visible.evaluation.algorithm_version, 'unevaluated')
+        history = self.json_command('candidacies', 'history', str(candidacy))
+        encoded = json.dumps(history)
+        self.assertIn('Old Company', encoded)
+        self.assertIn('Only original role fits', encoded)
+        self.assertEqual(visible.notes, 'Original manual note')
+
     def test_default_listings_and_errors_do_not_disclose_document_contents(self):
         self.prepare_draft()
         for arguments in (('resumes', 'list'), ('candidacies', 'list')):
@@ -146,6 +169,63 @@ class Phase4InterfaceTests(unittest.TestCase):
         self.assertEqual(self.invoke('candidacies', 'simulate', authorization)[0], 2)
         artifact.write_bytes(original)
         self.assertEqual(self.invoke('candidacies', 'simulate', authorization)[0], 2)
+
+    def test_store_initialization_failure_still_persists_revocation(self):
+        candidacy, _ = self.prepare_draft()
+        authorization = self.approve(candidacy)
+        evidence = data_home() / 'resumes' / 'evidence'
+        held = evidence.with_name('evidence-held')
+        evidence.rename(held)
+        evidence.write_text('Synthetic damaged directory', encoding='utf-8')
+        try:
+            self.assertEqual(self.invoke('candidacies', 'simulate', authorization)[0], 2)
+        finally:
+            evidence.unlink()
+            held.rename(evidence)
+        self.assertEqual(self.invoke('candidacies', 'simulate', authorization)[0], 2)
+
+    def _document(self, version):
+        return next(path for path in (data_home() / 'resumes').rglob('*')
+                    if path.is_file() and hashlib.sha256(path.read_bytes()).hexdigest() == version['sha256'])
+
+    def test_edit_preparation_cannot_bypass_persistent_integrity_revocation(self):
+        candidacy, version = self.prepare_draft()
+        authorization = self.approve(candidacy)
+        document = self._document(version)
+        original = document.read_bytes()
+        document.write_bytes(b'Synthetic tamper before edit')
+        try:
+            self.assertEqual(self.invoke('candidacies', 'edit', str(candidacy),
+                                         '--resume', version['version_id'])[0], 2)
+        finally:
+            document.write_bytes(original)
+        self.assertEqual(self.invoke('candidacies', 'simulate', authorization)[0], 2)
+
+    def test_duplicate_create_cannot_bypass_persistent_integrity_revocation(self):
+        candidacy, version = self.prepare_draft()
+        authorization = self.approve(candidacy)
+        vacancy = self.json_command('candidacies', 'show', str(candidacy))['vacancy_id']
+        document = self._document(version)
+        original = document.read_bytes()
+        document.write_bytes(b'Synthetic tamper before duplicate create')
+        try:
+            self.assertEqual(self.invoke('candidacies', 'create', '--vacancy', str(vacancy),
+                                         '--resume', version['version_id'])[0], 2)
+        finally:
+            document.write_bytes(original)
+        self.assertEqual(self.invoke('candidacies', 'simulate', authorization)[0], 2)
+
+    @unittest.skipUnless(hasattr(os, 'mkfifo'), 'FIFO is a POSIX filesystem feature')
+    def test_nonregular_cli_input_is_rejected_without_waiting_for_a_writer(self):
+        fifo = self.root / 'master-fifo.json'
+        os.mkfifo(fifo)
+        try:
+            result = subprocess.run([sys.executable, '-m', 'jobsearch_assistant', 'resumes',
+                                     'import', str(fifo)], capture_output=True, text=True,
+                                    timeout=3, check=False)
+        except subprocess.TimeoutExpired:
+            self.fail('Nonregular CLI input must be rejected without blocking')
+        self.assertEqual(result.returncode, 2)
 
     def test_tracker_transitions_and_recording_applied_never_send(self):
         candidacy, _ = self.prepare_draft()

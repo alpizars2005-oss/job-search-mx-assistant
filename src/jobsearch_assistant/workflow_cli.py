@@ -5,8 +5,10 @@ import argparse
 import hashlib
 import ipaddress
 import json
+import os
 import re
 import sqlite3
+import stat
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,7 +16,6 @@ from urllib.parse import urlsplit
 
 from .config import data_home, database_path, ensure_workspace, load_profile
 from .database import ApplicationDatabase
-from .drafts import build_draft
 from .matching import evaluate_match
 from .migrations import legacy_identity
 from .sources.models import NormalizedJob
@@ -75,7 +76,13 @@ def add_workflow_parsers(sub, vacancy_sub) -> None:
 
 
 def _read_text(path: Path, limit: int) -> str:
-    with path.open('rb') as handle:
+    if path.is_symlink() or not stat.S_ISREG(path.stat().st_mode):
+        raise WorkflowError('nonregular_input')
+    flags = os.O_RDONLY | getattr(os, 'O_BINARY', 0) | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0)
+    descriptor = os.open(path, flags)
+    with os.fdopen(descriptor, 'rb') as handle:
+        if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+            raise WorkflowError('nonregular_input')
         raw = handle.read(limit + 1)
     if len(raw) > limit:
         raise WorkflowError('input_too_large')
@@ -192,10 +199,7 @@ def _candidacies(args, database: ApplicationDatabase, store) -> dict | list:
     workflow = CandidacyWorkflow(database, store)
     action = args.candidacy_command
     if action == 'create':
-        job = _job(database, args.vacancy)
-        version = store.verify_version(args.resume)
-        content = (_read_text(args.content_file, 200_000) if args.content_file
-                   else build_draft(job, version))
+        content = _read_text(args.content_file, 200_000) if args.content_file else None
         return {'candidacy_id': workflow.create(args.vacancy, args.resume, content)}
     if action == 'list':
         allowed = ('id', 'application_id', 'vacancy_id', 'resume_version_id', 'workflow_state',
@@ -218,11 +222,9 @@ def _candidacies(args, database: ApplicationDatabase, store) -> dict | list:
         if args.resume is None and args.vacancy is None and args.content_file is None:
             raise WorkflowError('empty_edit')
         content = _read_text(args.content_file, 200_000) if args.content_file else None
-        if content is None and (args.resume is not None or args.vacancy is not None):
-            job = _job(database, args.vacancy if args.vacancy is not None else current['vacancy_id'])
-            version = store.verify_version(args.resume or current['resume_version_id'])
-            content = build_draft(job, version)
-        changed = workflow.edit(args.id, resume_version_id=args.resume, content=content, vacancy_id=args.vacancy)
+        regenerate = content is None and (args.resume is not None or args.vacancy is not None)
+        changed = workflow.edit(args.id, resume_version_id=args.resume, content=content,
+                                vacancy_id=args.vacancy, regenerate_content=regenerate)
         return {'candidacy_id': args.id, 'changed': changed}
     if all(value is None for value in (args.status, args.notes, args.outcome, args.next_step, args.follow_up)):
         raise WorkflowError('empty_update')
@@ -231,18 +233,32 @@ def _candidacies(args, database: ApplicationDatabase, store) -> dict | list:
     return {'candidacy_id': args.id, 'updated': updated}
 
 
+class _DeferredResumes:
+    """Construct/validate storage only inside the transactional CV verifier."""
+
+    def __init__(self, root: Path):
+        self.root = root
+
+    def verify_version(self, version_id: str) -> dict:
+        from .resumes import ResumeStore
+
+        return ResumeStore(self.root).verify_version(version_id)
+
+
 def dispatch_workflow(args) -> int:
     try:
         require_dry_run()
         ensure_workspace()
         if args.command == 'vacancies':
             payload = import_manual_vacancy(args, ApplicationDatabase(database_path()))
-        else:
+        elif args.command == 'resumes':
             from .resumes import ResumeStore
 
             store = ResumeStore(data_home() / 'resumes')
-            payload = (_resumes(args, store) if args.command == 'resumes'
-                       else _candidacies(args, ApplicationDatabase(database_path()), store))
+            payload = _resumes(args, store)
+        else:
+            payload = _candidacies(args, ApplicationDatabase(database_path()),
+                                   _DeferredResumes(data_home() / 'resumes'))
         print(json.dumps(payload, ensure_ascii=True, indent=2))
         return 0
     except (OSError, UnicodeError, ValueError, TypeError, sqlite3.Error) as error:
