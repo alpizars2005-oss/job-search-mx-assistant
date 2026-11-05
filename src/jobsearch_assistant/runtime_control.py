@@ -161,17 +161,20 @@ class BoundedTransport:
             process.start()
             writer.close()
             while True:
-                self.control.check()
-                remaining = timeout - (time.monotonic() - started)
-                if remaining <= 0:
-                    raise TimeoutError('request_timeout')
-                if reader.poll(min(remaining, self.control.remaining(), 0.05)):
+                # Hand off a completed response before cancellation. Its caller
+                # must checkpoint server cooldowns before doing further work.
+                ready = reader.poll(0)
+                if not ready:
                     self.control.check()
+                    remaining = timeout - (time.monotonic() - started)
+                    if remaining <= 0:
+                        raise TimeoutError('request_timeout')
+                    ready = reader.poll(min(remaining, self.control.remaining(), 0.05))
+                if ready:
                     try:
                         kind, value = reader.recv()
                     except (EOFError, OSError):
                         raise OSError('network_error') from None
-                    self.control.check()
                     if kind == 'response':
                         return value
                     if kind == 'source_error':

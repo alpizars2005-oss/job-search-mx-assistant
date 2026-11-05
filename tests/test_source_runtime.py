@@ -56,6 +56,33 @@ class SourceRuntimeTests(unittest.TestCase):
             function()
         self.assertEqual(caught.exception.code, code)
 
+    def test_received_retry_after_is_durable_before_deadline_or_cancellation(self):
+        from jobsearch_assistant.runtime_control import RunControl
+        for trigger in ('deadline', 'cancelled'):
+            for status in (429, 503):
+                with self.subTest(trigger=trigger, status=status):
+                    clock, cancelled, persisted = Clock(), [False], []
+                    control = RunControl(1, cancelled=lambda: cancelled[0], monotonic=clock.monotonic)
+                    def transport(*args):
+                        if trigger == 'deadline':
+                            clock.seconds = 1.1
+                        else:
+                            cancelled[0] = True
+                        return response(status, {'Retry-After': '3600'})
+                    client = self.client(clock, transport, control=control, state_callback=persisted.append)
+                    self.assert_code('run_deadline' if trigger == 'deadline' else 'run_cancelled',
+                                     lambda: client.get_json('greenhouse', URL))
+                    saved = persisted[-1]['providers']['greenhouse']
+                    self.assertEqual(saved['failures'], 1)
+                    self.assertGreaterEqual(datetime.fromisoformat(saved['not_before']),
+                                            clock.now() + timedelta(seconds=3600))
+                    transport_after_restart = Responses(response())
+                    restarted = self.client(Clock(20), transport_after_restart,
+                                            policy=RequestPolicy(max_retries=0, min_interval=0, max_wait=0))
+                    restarted.import_state(persisted[-1])
+                    self.assert_code('source_paused', lambda: restarted.get_json('greenhouse', URL))
+                    self.assertEqual(transport_after_restart.calls, 0)
+
     def test_retry_after_survives_restart_without_restoring_run_quota(self):
         first_clock = Clock()
         first = self.client(first_clock, Responses(response(429, {'Retry-After': '10'})))

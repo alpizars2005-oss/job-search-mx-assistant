@@ -5,6 +5,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -27,6 +28,11 @@ class SlowTransport:
 class SmallTransport:
     def __call__(self, url, timeout, max_bytes):
         return HttpResponse(200, {'Content-Type': 'application/json'}, b'{"ok":true}')
+
+
+class RateLimitedTransport:
+    def __call__(self, url, timeout, max_bytes):
+        return HttpResponse(429, {'Retry-After': '3600'}, b'')
 
 
 class SlowBodyTransport:
@@ -81,6 +87,32 @@ class RunControlTests(unittest.TestCase):
         cancelled[0] = True
         self.assert_code('run_cancelled', control.check)
         self.assert_code('run_cancelled', lambda: control.sleep(5))
+
+    def test_completed_response_handoff_survives_cancellation_during_ipc_receive(self):
+        runtime = self.runtime()
+        cancelled = threading.Event()
+        control = runtime.RunControl(10, cancelled=cancelled)
+        context = multiprocessing.get_context('spawn')
+        original_pipe = context.Pipe
+        class Received:
+            def __init__(self, reader):
+                self.reader = reader
+            def poll(self, *args):
+                return self.reader.poll(*args)
+            def recv(self):
+                result = self.reader.recv()
+                cancelled.set()
+                return result
+            def close(self):
+                self.reader.close()
+        def pipe(*args, **kwargs):
+            reader, writer = original_pipe(*args, **kwargs)
+            return Received(reader), writer
+        with patch.object(context, 'Pipe', side_effect=pipe):
+            result = runtime.BoundedTransport(control, RateLimitedTransport())('https://example.test', 5, 1024)
+        self.assertEqual(result.status, 429)
+        self.assertEqual(result.headers['Retry-After'], '3600')
+        self.assert_code('run_cancelled', control.check)
 
     def test_sleep_cannot_cross_run_budget(self):
         runtime = self.runtime()

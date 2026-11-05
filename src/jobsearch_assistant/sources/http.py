@@ -299,7 +299,6 @@ class SafeHttpClient:
                 timeout = (self.policy.timeout if self.control is None else
                            min(self.policy.timeout, self.control.remaining()))
                 response = self.transport(url, timeout, self.policy.max_response_bytes)
-                self._check()
                 headers = {key.lower(): value for key, value in response.headers.items()}
                 status = response.status
             except (URLError, OSError, TimeoutError, HTTPException):
@@ -307,6 +306,7 @@ class SafeHttpClient:
             state.in_flight_until = 0.0
             if status == 200:
                 try:
+                    self._check()
                     if len(response.body) > self.policy.max_response_bytes:
                         raise SourceError('response_too_large')
                     if headers.get('content-encoding', 'identity').lower() != 'identity':
@@ -342,6 +342,9 @@ class SafeHttpClient:
                     self._wait(state, retry_after)
             else:
                 self._state_changed()
+            # A received failure/cooldown must survive cancellation or deadline;
+            # no parsing, subsequent wait or retry proceeds after this guard.
+            self._check()
             if not retryable or attempt == self.policy.max_retries:
                 raise error
             self._guard(state)
