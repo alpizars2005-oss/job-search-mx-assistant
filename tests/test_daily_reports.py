@@ -97,7 +97,7 @@ class DailyReportTests(unittest.TestCase):
         )
         self.assertIn(
             "Envíos reales confirmados: 0",
-            (self.home / "reports/2026-11-04/report.md").read_text(),
+            (self.home / "reports/2026-11-04/report.md").read_text(encoding="utf-8"),
         )
 
     def test_restart_idempotence(self):
@@ -163,7 +163,7 @@ class DailyReportTests(unittest.TestCase):
         self.reports.generate()
         report = self.read()
         self.assertIsNone(report["vacancies"][0]["url"])
-        md = (self.home / "reports/2026-11-04/report.md").read_text()
+        md = (self.home / "reports/2026-11-04/report.md").read_text(encoding="utf-8")
         self.assertNotIn("<img", md)
         self.assertNotIn("[role](javascript:", md)
         self.assertNotIn("evil.test", md)
@@ -196,7 +196,7 @@ class DailyReportTests(unittest.TestCase):
         with self.assertRaises(WorkflowError) as error:
             self.reports.generate()
         self.assertEqual(error.exception.code, "report_integrity_error")
-        self.assertEqual(path.read_text(), "{bad")
+        self.assertEqual(path.read_text(encoding="utf-8"), "{bad")
 
     def test_disk_failure_retry(self):
         with (

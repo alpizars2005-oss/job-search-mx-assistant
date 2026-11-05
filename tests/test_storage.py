@@ -9,6 +9,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from contextlib import closing
 from datetime import datetime, timedelta, timezone
 
 from jobsearch_assistant.database import ApplicationDatabase
@@ -63,7 +64,7 @@ class StorageTests(unittest.TestCase):
             self.assertEqual(connection.execute('PRAGMA journal_mode').fetchone()[0], 'wal')
             restored = self.root / 'wal-restored'
             restore_bundle(self.destination, restored)
-            with sqlite3.connect(restored / 'applications.sqlite3') as recovered:
+            with closing(sqlite3.connect(restored / 'applications.sqlite3')) as recovered:
                 self.assertEqual(recovered.execute("SELECT value FROM meta WHERE key='wal_test'").fetchone()[0], 'committed')
         finally:
             connection.close()
