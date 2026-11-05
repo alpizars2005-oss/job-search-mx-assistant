@@ -61,9 +61,12 @@ _GEOGRAPHIC_RESTRICTION = re.compile(
     rf'\b(?:residencia|contratacion)\s+exclusiva\s+(?:en|para\s+(?:residentes?|ciudadanos?)\s+(?:de|en))\s+{_OTHER_COUNTRY}\b')
 _GEOGRAPHIC_WAIVER = re.compile(
     rf'\b{_OTHER_COUNTRY}\s+(?:residence|residency|citizenship)\s+(?:is\s+)?not\s+(?:required|needed)\b')
+_LOCATION_COUNTRIES = (rf'(?:the\s+)?{_OTHER_COUNTRY}(?:[- ]based)?'
+                       rf'(?:\s*(?:&|and|,|/)\s*(?:the\s+)?{_OTHER_COUNTRY}(?:[- ]based)?)*')
 _REMOTE_COUNTRY_LOCATION = re.compile(
-    rf'(?:remote\s*[-,:(]\s*(?:the\s+)?{_OTHER_COUNTRY}\)?|'
-    rf'{_OTHER_COUNTRY}\s*[-,(]\s*remote\)?|{_OTHER_COUNTRY}\s+only)[.\s]*')
+    rf'(?:remote\s*[-,:(;]\s*{_LOCATION_COUNTRIES}(?:\s+only)?\)?|'
+    rf'{_LOCATION_COUNTRIES}\s*[-,(]\s*remote\)?|{_OTHER_COUNTRY}\s+only)[.\s]*')
+_COUNTRY_LOCATION = re.compile(rf'{_LOCATION_COUNTRIES}(?:\s+only)?[.\s]*')
 _GEOGRAPHIC_SEPARATOR = re.compile(r'[,;]|\b(?:and|but|however|y|pero|sin embargo)\b')
 
 
@@ -219,6 +222,33 @@ def _combined(positive, negative, fallback='unknown'):
 
 def _mexico(segments):
     positive, negative, hints = [], [], []
+    # A semicolon can split a location label into evidence spans. Reassemble
+    # each field before classifying its bounded country list, keeping evidence
+    # offsets/provenance on the original individual spans.
+    locations = {}
+    for item in segments:
+        if item['field'] == 'location' or item['field'].startswith('locations['):
+            locations.setdefault(item['field'], []).append(item)
+    mexico_alternative = any(
+        re.search(r'\bmexico\b', _text(item))
+        and not re.search(r'\b(?:not|no|except|excluding|excepto|salvo)\b', _text(item))
+        for facts in locations.values() for item in facts)
+    for facts in locations.values():
+        label = normalize(' '.join(item['span'] for item in facts))
+        explicit = [item for item in facts if re.search(r'\bonly\b', _text(item))
+                    and _REMOTE_COUNTRY_LOCATION.fullmatch(_text(item).rstrip(';'))]
+        if explicit:
+            negative.extend(explicit)
+            continue
+        if (_REMOTE_COUNTRY_LOCATION.fullmatch(label) or _COUNTRY_LOCATION.fullmatch(label)):
+            if not mexico_alternative or re.search(r'\bonly\b', label):
+                negative.extend(facts)
+        elif not mexico_alternative:
+            # One string field may contain several complete location labels.
+            # Keep each recognized restriction when the whole field is a list.
+            negative.extend(item for item in facts
+                if _REMOTE_COUNTRY_LOCATION.fullmatch(_text(item).rstrip(';'))
+                or _COUNTRY_LOCATION.fullmatch(_text(item).rstrip(';')))
     actor = r'we\s+(?:(?:can|are able to|are)\s+)?(?:hire|hiring|employ|engage)'
     people = r'(?:candidates?|applicants?|people|employees?|residents?|engineers?|developers?|workers?)'
     residence = (rf'{people}\s+(?:(?:who|that)\s+(?:are\s+)?)?'
@@ -261,7 +291,7 @@ def _mexico(segments):
         rejected_here = bool(denied or excluded or (permit.search(text) and role_exception.search(text)))
         if rejected_here:
             negative.append(item)
-        if _REMOTE_COUNTRY_LOCATION.fullmatch(text):
+        if item['field'] not in locations and _REMOTE_COUNTRY_LOCATION.fullmatch(text):
             negative.append(item)
         for match in _GEOGRAPHIC_RESTRICTION.finditer(text):
             if _vacancy_residence_restriction(text, match):

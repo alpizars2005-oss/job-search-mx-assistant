@@ -46,3 +46,38 @@ Para rollback: preservar backup previo al esquema5 y documentos/config coherente
 restaurar a destino nuevo con código compatible, nunca bajar el marcador. Restore
 revoca aprobaciones y mantiene revisión de fuentes. No eliminar historial real,
 locks, cuotas ni restricciones para forzar recuperación.
+
+
+## Corrección preproducción R-01 — 2026-11-05
+
+HEAD comprobado antes del cambio: #11 en 6b915569a0224613680bc4f3354d36814104b4e1;
+#12 en 50a2b157748276a555a3a28a06580b3979a816b5, ambos abiertos y sin integrar.
+La auditoría suministrada de Claude se comprobó con datos sintéticos propios.
+
+Causa raíz: el fullmatch de ubicación no aceptaba only dentro de paréntesis,
+US-based, listas de países ni el país único del ATS. La segmentación por punto y
+coma perdía el contexto de `Remote; US-based`. Evaluar cada ubicación por separado
+también convertía una lista que incluía México en una exclusión falsa.
+
+Se reconstruye cada campo de ubicación conservando sus spans/offsets/procedencia;
+una gramática acotada reconoce esas etiquetas. Las alternativas México suprimen
+solo exclusividad inferida; only y restricciones del cuerpo siguen excluyendo o
+produciendo contradicción. No se convierte una mención incidental US en exclusión
+ni una ubicación México en permiso de contratación. Parser del cuerpo preservado.
+
+RED: 31 fallos de subTest. Los siete ejemplos R-01 se probaron como JobPosting y
+NormalizedJob, con/sin permiso México, más controles positivos y contradicciones.
+La regresión de caché conserva el snapshot matching_v3 y genera una evaluación
+matching_v4 independiente al observar de nuevo el mismo contenido. Esta versión
+nueva evita reutilizar una prioridad alta v3 afectada; no migra ni reinterpreta
+históricos automáticamente. Resultados GREEN/suites/CI del SHA final en el PR.
+
+Checklist manual: revisar evidencia de exclusión y contradicción de las siete
+etiquetas, confirmar listas US/México permitidas sin exclusividad explícita y
+verificar nueva evaluación v4 junto al histórico v3. No activar fuentes o servicios.
+
+La revisión interna independiente de0a3b96c encontró una regresión adicional:
+dos etiquetas completas dentro de un mismo campo (US; Canadá) perdían su exclusión.
+Se reprodujeron seis subtests RED en ambos modelos; se conserva ahora cada span
+reconocido cuando el campo reúne varias etiquetas y no incluye alternativa México.
+La revisión corresponde a ese SHA, no constituye una nueva revisión de Claude.
