@@ -202,7 +202,16 @@ high_priority del piloto, especialmente los generados con v7. No son certificaci
 legal ni una garantía de cobertura de todo lenguaje. No hay despliegue, candidaturas
 o llamadas Claude; resultados finales y CI del HEAD quedan en el PR independiente.
 
-Validación local: 495 unittest OK (un skip exclusivo de Windows en Linux),
-494 pytest y 1161 subtests OK (mismo skip), pip check/compileall/Ruff E9,F/diff check
+Validación local final: 496 unittest OK (un skip exclusivo de Windows en Linux),
+495 pytest y 1193 subtests OK (mismo skip), pip check/compileall/Ruff E9,F/diff check
 satisfactorios. Los 18 métodos geográficos anteriores conservan sus aserciones;
 solo cambian las expectativas de la versión actual. No se añaden skips.
+
+La revisión interna de e942f80..8b936d8 identificó tres Important: other/another
+antes de US-only role perdía alcance, The position no se reconocía y benefits en
+el nombre de un puesto podía ocultar su restricción. Un único pase añadió 32
+escenarios RED/GREEN y corrigió el vínculo de sujeto, artículo y prestación
+incidental. También cubre un puesto actual tras mencionar otros y profesiones con
+customer/benefits. El candidato no se publicó antes de estas correcciones: v8
+sigue siendo la versión nueva. La revisión se refiere a ese candidato; no se le
+atribuye revisión posterior del arreglo ni una ejecución de Claude.

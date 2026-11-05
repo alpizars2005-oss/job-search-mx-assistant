@@ -113,6 +113,9 @@ class GeographicR01cTests(unittest.TestCase):
                        'Applicants outside the US will not be considered for other roles.',
                        'Solo para residentes de Estados Unidos para otro puesto.',
                        'For sales roles, we only hire in the United States.',
+                       'Another US-only role is available.',
+                       'Our other US-only role is available.',
+                       'For another US-only role, apply on our website.',
                        'Position examples from other teams are restricted to US residents.',
                        'Benefits for a US-only role include 401k.',
                        'Our customer has a US-only role.',
@@ -129,6 +132,22 @@ class GeographicR01cTests(unittest.TestCase):
                         self.assertEqual(self.geography(job)['status'], 'met' if permission else 'unknown')
                         self.assertEqual(evaluate_match(self.profile, job).recommendation,
                                          'high_priority' if permission else 'insufficient_information')
+
+    def test_current_role_restrictions_survive_articles_earlier_roles_and_profession_names(self):
+        for phrase in ('The position is restricted to US residents.',
+                       'Other roles are remote, but this is a US-only role.',
+                       'This employee benefits software role is open only to US residents.',
+                       'This benefits analyst role is open only to US residents.',
+                       'This customer support role is a US-only role.'):
+            for kind in (JobPosting, NormalizedJob):
+                for permission in (True, False):
+                    with self.subTest(phrase=phrase, kind=kind.__name__, permission=permission):
+                        job = self.job(kind, phrase, permission=permission)
+                        requirement = self.geography(job)
+                        self.assertEqual(requirement['status'], 'contradictory' if permission else 'unmet')
+                        self.assertEqual(evaluate_match(self.profile, job).recommendation,
+                                         'insufficient_information' if permission else 'ineligible')
+                        self.assertTrue(any(phrase in fact['span'] for fact in requirement['evidence']))
 
     def test_conditional_new_hiring_predicates_remain_unknown(self):
         for phrase in ('We may only hire in the United States.',
