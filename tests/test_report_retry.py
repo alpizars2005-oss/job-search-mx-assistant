@@ -133,7 +133,9 @@ with patch('jobsearch_assistant.daily_report_cli.DailyReports',side_effect=repor
                 if line.startswith('OnCalendar='):
                     expression = line.split('=', 1)[1]
                     result = subprocess.run(['systemd-analyze', 'calendar', '--iterations=1',
-                        '--base-time=2026-11-05 14:01:00 America/Mexico_City', expression],
+                        # Older analyze versions accept UTC timestamps here;
+                        # keep the calendar expression itself in Mexico City.
+                        '--base-time=2026-11-05 20:01:00 UTC', expression],
                         capture_output=True, text=True, timeout=10,
                         env={**os.environ, 'TZ': 'UTC', 'LC_ALL': 'C'})
                     self.assertEqual(result.returncode, 0, result.stderr)
