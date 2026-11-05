@@ -192,7 +192,14 @@ jobsearch automation show ID_DE_EJECUCION
 ```
 
 Ejecución única con bloqueo OS, presupuesto, cooldowns persistentes, matching e
-historial. No crea/aprueba ni envía candidaturas. Telegram está desactivado y exige
-configuración más `--notify`. Claude oficial queda preparado, sin invocación real.
+historial. No crea/aprueba ni envía candidaturas. Telegram está retirado; no se necesitan credenciales ni se crean avisos. Claude oficial queda preparado, sin invocación real.
 Consulta [operación, backup, privacidad y checklist](docs/AUTOMATION_MONITORING.md).
 No hay scheduler residente ni despliegue en PizzaLab.
+
+## Hardening de Fase 6 (pendiente de integración)
+
+Matching `matching_v3`, controles privados POSIX, interrupciones sin penalizar fuentes,
+Retry-After durable y suspensión manual, health con estado activo y esquema SQLite 5.
+Telegram eliminado; datos históricos protegidos contra nuevas escrituras. No envíos.
+La matriz CI incorpora Python 3.11 junto a 3.10/3.12/3.13 en Windows y Ubuntu.
+Ver [operación y recuperación](docs/AUTOMATION_MONITORING.md). PizzaLab sigue pendiente.

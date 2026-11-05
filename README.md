@@ -254,6 +254,13 @@ MIT. See [LICENSE](LICENSE).
 consulta fuentes habilitadas una vez, guarda/evalúa con historial y produce JSON
 redactado. `automation health`, `runs` y `show ID` permiten diagnosticar sin leer
 CV completos. Mutex OS, presupuesto y estados HTTP persistentes permiten reanudar.
-No se crean ni envían candidaturas automáticamente. Telegram necesita configuración
-más `--notify`; Claude queda preparado/desactivado, sin revisión real ejecutada.
+No se crean ni envían candidaturas automáticamente. Telegram está retirado; Claude queda preparado/desactivado, sin revisión real ejecutada.
 Ver [comandos, recuperación y límites](docs/AUTOMATION_MONITORING.md). Sin despliegue.
+
+## Hardening de Fase 6 (pendiente de integración)
+
+Matching `matching_v3`, controles privados POSIX, interrupciones sin penalizar fuentes,
+Retry-After durable y suspensión manual, health con estado activo y esquema SQLite 5.
+Telegram eliminado; datos históricos protegidos contra nuevas escrituras. No envíos.
+La matriz CI incorpora Python 3.11 junto a 3.10/3.12/3.13 en Windows y Ubuntu.
+Ver [operación y recuperación](docs/AUTOMATION_MONITORING.md). PizzaLab sigue pendiente.

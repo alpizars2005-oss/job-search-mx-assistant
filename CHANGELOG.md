@@ -1,3 +1,13 @@
+## Fase6 — hardening propuesto
+
+- matching_v3: restricciones geográficas, contradicciones y contexto de rol conservador.
+- Control local separado de errores ATS; Retry-After extremo suspendido sin truncación.
+- Almacenamiento privado POSIX compartido y validación de archivos/links/propietario.
+- Telegram retirado; esquema5 aditivo conserva historia y bloquea nuevas escrituras.
+- Recuperación de fuentes auditada, revisión tras restore y health activo/abandonado.
+- Claude bloquea flags/contexto debug; CI Windows/Ubuntu incorpora Python3.11.
+- Sin despliegue, revisión Claude real, mensajes ni envíos de candidaturas.
+
 # Changelog
 
 ## Unreleased

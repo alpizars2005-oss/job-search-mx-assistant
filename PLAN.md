@@ -3,25 +3,28 @@
 Fecha de auditoría de Fase 1: 2026-11-04. Base histórica: `main` en
 `54c7c9ee21fd88625386799782f40da8b6882a5d`.
 
-**Fase actualmente autorizada: Fase 5, automatización y monitoreo.**
-Las Fases 1–4 fueron integradas en los PR #6, #7, #8 y #9.
-Base de Fase 5: `a30d036fcd932a176dfa08b7cddbab83a351e0eb`, con CI de main
-aprobado en seis combinaciones (ejecución 71). Fase 6 pendiente y fuera de alcance.
-Cada fase termina en un PR a `main`; no fusionar automáticamente ni comenzar
-una fase dependiente hasta integrar su requisito y obtener autorización de alcance.
+**Fase actualmente autorizada: Fase 6, hardening y preparación operativa.**
+PR #10 integrado en main `cfa6a4d974ce129a2bc8aeeb4ee4d53b6afc44f7`, CI74 correcto.
+La misión nueva permite ramas/PRs apilados con dependencia explícita, sin fusiones.
 
-## Estado de Fase 5
+## Estado de hardening de Fase 6 (propuesto, pendiente de integración)
 
-Comando único `automation run`, bloqueo del sistema operativo, recuperación de
-runs interrumpidos, estados HTTP durables y presupuesto con transporte terminable.
-SQLite esquema 4 confirma vacante/evaluación/hallazgo/outbox en una transacción,
-reutiliza evaluaciones sin cambios y preserva candidaturas y aprobaciones exactas.
-Logs JSON redactados, health de solo lectura e historial. Telegram opt-in con
-intentos finitos y entrega ambigua sin replay; ninguna notificación real enviada.
-Claude oficial preparado/desactivado sin invocación ni revisión ficticia.
-Ver [operación y límites](docs/AUTOMATION_MONITORING.md),
-[Claude](docs/CLAUDE_REVIEW.md) y [plan](docs/superpowers/plans/2026-11-05-automation-monitoring.md).
-Resultados completos y CI del encabezado publicado se registran en el PR.
+M-01 versiona matching_v3 sin cambiar snapshots anteriores. M-02 separa cancelación
+local de fallos de proveedor y conserva respuestas/límites ya recibidos. M-03 aplica
+almacenamiento privado común. Telegram se retira: historial protegido por esquema 5,
+sin transporte ni productores. Retry-After extremo queda suspendido para revisión;
+health distingue ejecución activa y abandono. Claude continúa desactivado con
+checks de debug adicionales. CI exige ocho combinaciones de Python/OS.
+Ver [operación](docs/AUTOMATION_MONITORING.md) y
+[plan](docs/superpowers/plans/2026-11-04-phase6-hardening.md).
+Infraestructura y reportes diarios tendrán entrega dependiente separada; no hay
+despliegue, acceso PizzaLab, mensajes ni revisión real de Claude en esta misión.
+
+## Estado de Fase 5 (histórico, integrado en PR #10)
+
+Ejecución finita, persistencia HTTP, recuperación y observabilidad. Su Telegram
+opt-in queda sustituido por la retirada definitiva de Fase 6. El estado original
+se conserva en Git y no debe usarse como procedimiento de activación actual.
 
 ## Estado de Fase 4 (histórico, integrada en PR #9)
 
@@ -97,7 +100,8 @@ proyectos externos se conserva en la descripción del PR de esta fase.
   No scraping de LinkedIn/Indeed, sesiones privadas, CAPTCHA o evasión antibot.
 - `DRY_RUN=true`, `AUTO_SUBMIT=false`; una autorización futura identifica
   empresa, vacante y versión concreta del CV. No responder evaluaciones.
-- Telegram como primera notificación, desactivada sin configuración autorizada.
+- Telegram retirado definitivamente; reportes privados locales y entrega a Work
+  solo cuando exista mecanismo oficial, acceso y autorización comprobados.
 - Codex desarrolla; Claude Code será revisor independiente en Fase 5 mediante
   integración oficial compatible con Cloud. No se instaló ni configuró ahora.
 - Producción futura en PizzaLab/Proxmox VE: LXC Debian 12 sin privilegios,
@@ -237,7 +241,7 @@ transiciones válidas, detección de repetidos y ningún envío no autorizado.
 Cambiar la versión del CV invalida aprobación; guardar o cambiar estado local
 no envía nada. No responder evaluaciones de selección automáticamente.
 
-### Fase 5 — Automatización, Telegram y revisión independiente (esta entrega)
+### Fase 5 — Automatización y revisión independiente (histórico)
 
 Requisito comprobado: Fase 4 integrada, CI 71 satisfactorio y misión autorizada.
 Commits: ejecución periódica idempotente, bloqueo
@@ -316,8 +320,7 @@ No hay despliegue ni cambios en PizzaLab.
 
 ## Continuación después de Fase 5
 
-Integrar el PR tras revisión y autorizar Fase 6 antes de acceder al destino o crear
-unidades systemd. Falta comprobar el LXC Debian/Python y red reales, usuario/ACL,
-versión fijada, presupuesto del timer, backups, retención y rollback. Telegram y
-Claude requieren configuración y autorización separadas; su preparación no implica
-que estén activos. El motor es ejecutable una vez, no alojamiento en Codex Cloud.
+Fase 6 autorizada para preparación: integrar hardening tras revisión, validar LXC
+Debian 12/Python 3.11 y red real, instalar versión fijada, recursos, permisos, backups,
+retención y rollback. No activar timers antes del piloto autorizado. Claude y Work
+requieren permisos y configuración separados; Telegram no se utilizará.

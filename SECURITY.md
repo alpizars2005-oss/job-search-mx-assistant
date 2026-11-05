@@ -34,7 +34,7 @@ restricciones únicas y transacciones. La API local no representa autorización 
 envío. Los snapshots y backups contienen perfiles privados completos: mantenerlos
 fuera del repositorio y aplicar permisos/ACL del sistema; no son cifrados.
 
-`matching_v2` procesa texto como datos y utiliza reglas deterministas acotadas.
+`matching_v3` procesa texto como datos y utiliza reglas deterministas acotadas.
 Ningún campo ATS ni puntaje confirma elegibilidad legal por sí solo; las afirmaciones
 del empleador son evidencia observada, no verificación jurídica independiente.
 La falta de información esencial conserva `insufficient_information`. La versión
@@ -70,11 +70,20 @@ para este comando. HTTP real se aísla en worker terminable con watchdog; no bor
 locks ni usar discover paralelo para eludir límites. Cuotas no coordinan clones.
 Logs y health usan solo códigos/IDs/contadores, sin contenido privado o excepciones.
 
-Telegram es el único transporte saliente nuevo y solo admite avisos mínimos:
-activación+token/chat+`--notify` explícitos, host fijo sin redirects, intentos y
-presupuesto limitados, sin CV/URLs/contactos ni órdenes entrantes. Intención durable
-antes de red; una entrega ambigua no se reenvía. Restore revoca aprobaciones y
-marca avisos pendientes/en curso como ambiguos. No hay sender de candidaturas.
+Telegram está retirado. No hay runtime, configuración, productores o conexiones.
+Esquema 5 conserva sus tablas históricas y añade triggers contra INSERT/UPDATE/DELETE.
+No reactivar esas tablas mediante código antiguo; el rollback necesita copia previa.
+
+Cancelación/deadline/worker local no penalizan proveedores sin evidencia de fallo.
+Retry-After válido nunca se acorta; horizonte extremo requiere recuperación auditada,
+y una suspensión sin plazo representable no se borra automáticamente. Restore
+conserva restricciones conocidas y exige revisión explícita de fuentes.
+
+En POSIX, home/subdirectorios gestionados son 0700 y archivos 0600, incluyendo SQLite
+auxiliar, CV y exportaciones. Se validan tipo, propietario, links e identidad al abrir.
+No se cambian permisos de evidencias externas ni directorios generales importados.
+Windows conserva controles de tipo/link pero requiere ACL privada del operador;
+no se afirma equivalencia con protección POSIX ni resistencia a administradores.
 
 Claude oficial queda manual/desactivado, con permisos read-only y herramientas
 denegadas, sin checkout del PR. Activar requiere environment y coste autorizados;

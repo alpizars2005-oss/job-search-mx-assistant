@@ -44,7 +44,7 @@ para pruebas offline. Ver [contrato y operación](JOB_SOURCES.md).
 
 - `eligibility.py`: requisitos excluyentes, negaciones y evidencia de campos o
   fragmentos, conservando desconocidos y contradicciones.
-- `matching.py`: compatibilidad determinista `matching_v2` y explicación bilingüe.
+- `matching.py`: compatibilidad determinista `matching_v3` y explicación bilingüe.
 - `evaluator.py`: entrada compatible al motor nuevo; `evaluate_job_legacy`
   conserva el algoritmo histórico como referencia explícita.
 - `migrations.py`: esquema 2, migración 1→2 transaccional, backup SQLite previo
@@ -85,12 +85,13 @@ SQLite una garantía de exactly-once sobre un servicio remoto. Ver
 - `runtime_control.py`: presupuesto/cancelación, mutex OS y HTTP en worker spawn.
 - `sources/http.py`: estado UTC exportable/importable y checkpoints durables; el
   contrato anterior sin control continúa disponible.
-- `automation_schema.py`/`automation_store.py`: esquema 4, historial y observación
+- `automation_schema.py`/`automation_store.py`: esquema 5, historial y observación
   atómica reutilizando upsert/invalidation/evaluation internos de Fases 3–4.
 - `automation.py`/`automation_cli.py`: una ejecución finita, callbacks por página,
   logs allowlist, perfil estricto y lecturas operativas sin migración.
-- `notifications.py`/`telegram.py`: outbox local, entrega mínima opt-in y recuperación
-  conservadora; ninguna notificación es una autorización de candidatura.
+- `private_storage.py`: validación y apertura privada compartida, SQLite y sidecars.
+- `legacy_notifications_schema.py`: DDL histórico y triggers de retirada; sin runtime.
+- `operational_control_events`: historial inmutable de recuperación manual de fuentes.
 - Workflow Claude manual y preparador confiable: diff acotado tratado como datos,
   sin extraer código del PR ni herramientas para modificarlo; default desactivado.
 

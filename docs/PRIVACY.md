@@ -47,10 +47,10 @@ y contadores. SQLite conserva también snapshots privados anteriores: el resumen
 redactado no convierte el backup en información pública. El home de automatización
 se exige fuera del checkout. No se altera el contenido de CV/candidaturas.
 
-Telegram permanece desactivado; solo con configuración y `--notify` autorizados
-salen etiquetas estáticas y IDs/cantidades. No títulos, empresas, URLs, perfiles o
-CV. Chat/token nunca se imprimen, pero Telegram conocerá el destinatario, horarios
-y esos avisos. Pendientes/ambiguos permanecen en SQLite; revisar antes de activar.
+Telegram fue retirado. No se leen credenciales ni se crean/drenan eventos; sus
+filas históricas permanecen de solo lectura. No hay destinatario ni entrega externa.
+Los archivos gestionados se protegen 0700/0600 en POSIX incluso con umask permisiva;
+los imports externos conservan sus permisos. En Windows verificar ACL independientes.
 
 Claude no fue invocado. Una activación futura enviará el diff seleccionado al
 proveedor y puede imprimirlo en logs de Actions: revisar previamente secretos/datos
