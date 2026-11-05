@@ -172,6 +172,8 @@ El workflow es `draft → reviewed → approved → simulated`. Revisar muestra 
 y snapshot; aprobar exige ese digest vigente. La autorización enlaza empresa,
 identidad/snapshot de vacante, ID/versión/SHA del CV, texto exacto y revisión. Tiene
 un identificador aleatorio y estado `active`, `invalidated` o `consumed`.
+`create` es idempotente: devuelve el ID existente sin sustituir su CV o borrador.
+Para modificarlo se usa `edit` y se revisa de nuevo.
 
 La simulación consume una vez en transacción y devuelve `submitted=false`,
 `dry_run=true`, `auto_submit=false`. Un segundo proceso, reinicio o intento repetido
@@ -192,6 +194,8 @@ La integridad de CV, manifiesto y evidencia se comprueba al revisar/aprobar/cons
 Si falla, la revocación se confirma antes de devolver el error. No se monitorean
 archivos en segundo plano: la comprobación ocurre al usar el workflow. Restaurar
 los bytes después de una revocación no reactiva el permiso antiguo.
+La inicialización del almacén y la generación automática quedan dentro del guard
+transaccional; un error previo de ruta/documento no omite esa revocación.
 
 ## Tracker, fechas y resultados
 
@@ -202,6 +206,9 @@ rechazan para no fusionar dos historias silenciosamente.
 Al cambiar destino o reparar una fuente actualizada, se conserva el par anterior
 vacante/evaluación como historial y la evaluación actual queda explícitamente
 pendiente. No se atribuye el score de otra vacante al destino nuevo.
+Adoptar una fila legacy guardada puede reconciliar empresa/puesto/contenido con
+su destino actual, conservando el original en historial; si ya registra applied
+o un estado posterior para otro destino, se rechaza para no alterar su historia.
 
 ```bash
 jobsearch candidacies update 1 --status interested --next-step "Revisar requisitos" --follow-up 2026-12-01
@@ -266,6 +273,17 @@ Las suites usan documentos, perfiles, HTTP y SQLite sintéticos en temporales, s
 servicios externos. El PR registra comandos, conteos, hallazgos corregidos y CI real
 Windows/Ubuntu del commit final. La GUI se verifica con métodos headless; las nuevas
 operaciones completas están disponibles en CLI y el tracker GUI conserva su uso.
+
+Validación local final en Linux: **259 pruebas unittest** en Python 3.12.14 y
+3.10.22; pytest **259 pruebas +523 subtests**, aprobados. Compilación, `pip check`,
+Ruff E9/F, CLI help, preparación Linux y diff completo: aprobados. Los ejemplos
+sintéticos importan correctamente y no generan hechos no atestiguados.
+
+La revisión independiente verificó las correcciones de restauración de permisos,
+atribución del tracker, snapshots de historial, rutas y guards de integridad de
+CLI/adopción legacy. La comprobación final ejecutó **16 pruebas +19 subtests** y
+**seis escenarios propios**. La evidencia de CI remota del HEAD publicado se
+mantiene en el PR; no se deduce del éxito local. No se declara auditoría de Claude.
 
 - [ ] Cotejar cada hecho ES/EN, categoría y evidencia; no usar proyectos como empleo.
 - [ ] Abrir TXT/DOCX localmente y revisar texto seleccionable, acentos y formato.

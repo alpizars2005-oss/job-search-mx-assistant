@@ -47,15 +47,16 @@ Maestro de entrada schema_version=1: `candidate` objeto con `name` texto y `cont
 
 Contrato de `CandidacyWorkflow(database:ApplicationDatabase, resumes:object)` en `candidacies.py` (resumes.verify_version requerido):
 
-- `create(vacancy_id:int, resume_version_id:str, content:str)->int`, única candidatura por vacancy_id; reutiliza applications.
+- `create(vacancy_id:int, resume_version_id:str, content:str|None)->int`, única candidatura por vacancy_id; reutiliza applications. None compone el borrador dentro de la transacción protegida.
 - `get(id)->dict|None`, `list()->list[dict]`, `history(id)->list[dict]`.
-- `edit(id, *, resume_version_id=None, content=None, vacancy_id=None)->bool`; cambios reales crean revisión e invalidan permisos.
+- `edit(id, *, resume_version_id=None, content=None, vacancy_id=None, regenerate_content=False)->bool`; cambios reales crean revisión e invalidan permisos. Regeneración explícita compone dentro de la transacción, sin un content manual simultáneo.
 - `review(id)->dict` con `review_digest` y snapshot completo; cambia draft→reviewed.
 - `approve(id, review_digest:str)->str` authorization_id; solo digest revisado vigente, idempotente si active para ese mismo digest.
 - `simulate(authorization_id:str)->dict` consume exactamente una vez; recibo con dry_run=true, auto_submit=false, submitted=false. Nunca marca applied automáticamente.
 - `update_tracking(id, *, status=None, notes=None, outcome=None, next_step=None, follow_up_on=None)->bool`; fecha futura es calendario YYYY-MM-DD declarado, sin scheduler.
 - `get/list` incluyen `id`, `application_id`, `vacancy_id`, `resume_version_id`, `workflow_state`, `revision`, `content`, `company`, `review_digest`, estado de tracker y próximos pasos; history conserva revisiones/eventos/autorizaciones sin borrar snapshots.
 - Valida CV actual dentro de cada operación crítica; un fallo confirma invalidación antes de lanzar error, no la revierte por accidente. Compara snapshot de vacante y metadatos del CV exactamente. No acepta un callback opcional que omita verificación.
+- La CLI suministra un verificador diferido: incluso un fallo al inicializar el almacén ocurre dentro del guard. Adoptar un registro legacy con contenido distinto solo se permite en saved/interested, preservando la fila/evaluación anterior y reconciliando el tracker; estados históricos posteriores con otro destino se rechazan.
 
 ## Review Focus
 
@@ -110,7 +111,20 @@ Files: cli.py o nuevo workflow_cli.py, gui.py, documentación/ejemplos sintétic
 
 ### Task 5: Revisión, validación y PR (principal)
 
-- [ ] Revisiones independientes de subsistemas y de toda la rama; corregir Important/Critical con RED→GREEN sin debilitar validaciones.
-- [ ] Suites completas Python3.10/3.12, pytest, pip check, compileall, CLI y preparación launchers; comprobar diff completo y privacidad.
-- [ ] Publicar rama solamente, PR independiente a main; adjuntar URL a tarea y verificar seis jobs CI Windows/Ubuntu del HEAD final.
-- [ ] Documentar resultados reales, hashes, límites y contexto de Fase5 sin iniciarla. No merge.
+- [x] Revisiones independientes de subsistemas y de toda la rama; corregir Important/Critical con RED→GREEN sin debilitar validaciones.
+- [x] Suites completas Python3.10/3.12, pytest, pip check, compileall, CLI y preparación launchers; comprobar diff completo y privacidad.
+
+Para cerrar la fase: publicar únicamente la rama, abrir PR a main, adjuntar URL y
+confirmar seis jobs CI del HEAD final. Resultados remotos, hashes, límites y
+veredicto se registran en ese PR; nunca deducir CI de los tests locales. No merge.
+
+## Evidencia final antes de publicación
+
+- Python3.12.14: 259 unittest y259pytest+523subtests, aprobados.
+- Python3.10.22: 259 unittest, aprobados.
+- pipcheck, compileall, RuffE9/F, CLIhelp, preparaciónLinux ydiffcompleto: aprobados.
+- Revisiones de CV y SQLite separadas; restauración/replay, atribución y rutas
+  corregidas con regresiones observadas fallar antes. Sin aserciones debilitadas.
+- Revisión final y verificación acotada: 16 pruebas+19subtests y6probesindependientes,
+  hallazgos cerrados. La configuración CI permanece con seis combinaciones.
+- Sin validación visual de Word/Tkinter, ATS reales, envíos o despliegue.

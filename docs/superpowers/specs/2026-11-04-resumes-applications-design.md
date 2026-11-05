@@ -60,6 +60,11 @@ no reescribe el historial. La simulación no cambia automáticamente el tracker 
 applied. Las transiciones del tracker se verifican para candidaturas gestionadas;
 los registros manuales anteriores conservan su API y datos.
 
+La CLI difiere construcción/verificación del almacén hasta entrar al guard
+transaccional, incluida composición automática de texto. Una adopción legacy
+reconcilia el destino actual con el tracker y conserva la fila anterior como evento;
+si ese registro ya se aplicó a otro destino, se rechaza sin cambiar su historia.
+
 La revisión muestra un digest de empresa, identidad/snapshot de vacante, versión
 y SHA del CV, contenido exacto del borrador y número de revisión. Aprobar exige
 ese digest concreto. La autorización tiene ID aleatorio, snapshot y estados
