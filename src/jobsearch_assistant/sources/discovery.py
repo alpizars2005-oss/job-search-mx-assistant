@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Callable
 
+from ..runtime_control import LOCAL_CONTROL_CODES
 from .adapters import endpoint, parse_page
 from .http import SafeHttpClient
 from .models import DiscoveryResult, SourceConfig, SourceError, SourceReport
@@ -19,10 +20,16 @@ class DiscoveryEngine:
     def run(self, configs: list[SourceConfig], *, on_job=None, on_report=None) -> DiscoveryResult:
         self.client.begin_run()
         jobs, reports, seen = [], [], set()
+        stopped = None
         for config in configs:
             report = SourceReport(config.provider, config.board)
             reports.append(report)
             if not config.enabled:
+                if on_report:
+                    on_report(report)
+                continue
+            if stopped is not None:
+                report.status = 'not_attempted'
                 if on_report:
                     on_report(report)
                 continue
@@ -38,9 +45,17 @@ class DiscoveryEngine:
                         config, payload, url, self.now().astimezone(timezone.utc).isoformat()))
                 except SourceError as error:
                     report.rejected += error.rejected
+                    provider_issue = getattr(error, 'provider_issue', None)
+                    if provider_issue and provider_issue != error.code:
+                        report.issues.append(provider_issue)
                     report.issues.append(error.code)
-                    report.status = ('partial' if offset else
-                                     'paused' if error.code == 'source_paused' else 'error')
+                    if error.code in LOCAL_CONTROL_CODES:
+                        stopped = error
+                        attempted = self.client.request_counts.get(config.provider, 0) - start
+                        report.status = 'interrupted' if attempted else 'not_attempted'
+                    else:
+                        report.status = ('partial' if offset else
+                                         'paused' if error.code in ('source_paused', 'source_suspended') else 'error')
                     break
                 report.rejected += page.rejected
                 for issue in page.issues:
@@ -54,7 +69,17 @@ class DiscoveryEngine:
                         seen.add(key)
                         jobs.append(job)
                         if on_job:
-                            on_job(job)
+                            try:
+                                on_job(job)
+                            except SourceError as error:
+                                if error.code not in LOCAL_CONTROL_CODES:
+                                    raise
+                                stopped = error
+                                report.status = 'interrupted'
+                                report.issues.append(error.code)
+                                break
+                if stopped is not None:
+                    break
                 if config.provider != 'lever' or page.raw_count < self.client.policy.page_size:
                     break
                 offset += page.raw_count
@@ -65,4 +90,6 @@ class DiscoveryEngine:
                 report.status = 'partial'
             if on_report:
                 on_report(report)
+        if stopped is not None:
+            raise stopped
         return DiscoveryResult(jobs, reports)

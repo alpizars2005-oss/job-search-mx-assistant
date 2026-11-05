@@ -51,8 +51,13 @@ class RequestPolicy:
     max_response_bytes: int = 5 * 1024 * 1024
     max_pages: int = 10
     page_size: int = 100
+    retry_after_horizon: float = 86400.0
 
     def __post_init__(self):
+        if (type(self.retry_after_horizon) not in (int, float)
+                or not math.isfinite(self.retry_after_horizon)
+                or not 1 <= self.retry_after_horizon <= 31536000):
+            raise ValueError('invalid retry_after_horizon')
         integer_bounds = {
             'max_requests': (1, 1000), 'max_retries': (0, 10),
             'error_threshold': (1, 100), 'max_response_bytes': (1, 20 * 1024 * 1024),

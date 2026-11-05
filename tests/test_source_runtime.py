@@ -133,7 +133,7 @@ class SourceRuntimeTests(unittest.TestCase):
         first = self.client(clock, crash, state_callback=lambda state: persisted.append(copy.deepcopy(state)))
         with self.assertRaisesRegex(RuntimeError, 'synthetic crash'):
             first.get_json('greenhouse', URL)
-        self.assertEqual(persisted[0]['providers']['greenhouse']['failures'], 1)
+        self.assertEqual(persisted[0]['providers']['greenhouse']['failures'], 0)
         second_clock = Clock(1)
         second = self.client(second_clock, Responses(response()))
         second.import_state(persisted[0])
@@ -212,7 +212,7 @@ class SourceRuntimeTests(unittest.TestCase):
         client = self.client(Clock(), Responses(response()))
         client.get_json('greenhouse', URL)
         previous = client.export_state()
-        for payload in ({'version': 2, 'providers': {}}, {'version': 1, 'providers': {'private-value': {}}},
+        for payload in ({'version': 3, 'providers': {}}, {'version': 1, 'providers': {'private-value': {}}},
                         {'version': 1, 'providers': {'greenhouse': {'failures': True, 'paused_until': None, 'not_before': None}}}):
             with self.subTest(payload=payload):
                 self.assert_code('invalid_http_state', lambda payload=payload: client.import_state(payload))
