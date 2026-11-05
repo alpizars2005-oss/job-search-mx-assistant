@@ -119,8 +119,8 @@ oneshot. Reportes TimeoutStartSec=120 y catchup acotado 31 por invocación.
 No SuccessExitStatus genérico:0 completo,1 parcial,2 configuración/almacenamiento,
 3 concurrencia,4 deadline,130 interrupción conservan significado.
 
-Timer horario con Persistent=true, jitter 120 s, Accuracy 1 s. Diario14:00 en
-America/Mexico_City, Persistent sin jitter. Una recuperación del timer produce
+Timer horario con Persistent=true, jitter 120 s, Accuracy 1 s. Reporte a las 14:00 y reintento a las 14:15 en
+America/Mexico_City, Persistent sin jitter, con corte fijo a las 14:00. Una recuperación del timer produce
 una activación, no una ráfaga por cada hora perdida; report CLI recupera fechas.
 After=search ordena si coinciden en una transacción, no garantiza que el informe
 incluya la búsqueda de las 14:00. Su ventana y retraso son explícitos.
@@ -177,3 +177,19 @@ Referencias oficiales revisadas: [systemd.service Debian 12](https://manpages.de
 [systemd.exec](https://manpages.debian.org/bookworm/systemd/systemd.exec.5.en.html),
 [Debian 12/venv](https://www.debian.org/releases/bookworm/amd64/release-notes/ch-information.en.html)
 y [pip instalaciones repetibles](https://pip.pypa.io/en/stable/topics/repeatable-installs/).
+
+
+## Integración de las ramas apiladas (sin ejecutarla en esta entrega)
+
+#12 incorpora 875585782d9672ae0879e2c415b3ca7467b9db37 de #11 mediante merge local,
+conservando como ancestro 50a2b157748276a555a3a28a06580b3979a816b5 y sus siete commits
+propios. No se hizo rebase o force-push. El diff contra #11 conserva solo preparación
+operativa y N-02; no vuelve a presentar el motor de elegibilidad como cambio propio.
+
+Cuando el propietario autorice integración, preferir merge de #11 preservando su
+ascendencia. Después retargetear #12 a main y verificar merge-base/diff y CI antes de
+integrarlo. Si #11 se integra por squash/rebase remoto, no asumir la ascendencia:
+preparar una rama nueva desde main actualizado y trasladar solo los siete commits
+propios originales de #12 más el commit N-02, excluyendo el merge de hardening.
+Comparar árboles/diff y repetir CI. Conservar la rama original; no reescribirla ni
+forzar un push para ocultar duplicados. Ninguna de estas integraciones se realizó.

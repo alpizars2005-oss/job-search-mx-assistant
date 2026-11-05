@@ -526,14 +526,17 @@ def render_units(layout, user):
               'After=jobsearch-search.service\n\n[Service]\nType=oneshot\n' + shared +
               'TimeoutStartSec=120\n' +
               f'ExecStart={executable} reports generate --config {config}/sources.json --timezone America/Mexico_City --at 14:00 --max-reports 31\n')
-    def timer(description, calendar, delay, unit):
-        return (f'[Unit]\nDescription={description}\n\n[Timer]\nOnCalendar={calendar}\n'
+    def timer(description, calendars, delay, unit):
+        expressions = ''.join(f'OnCalendar={calendar}\n' for calendar in calendars)
+        return (f'[Unit]\nDescription={description}\n\n[Timer]\n{expressions}'
                 f'Persistent=true\nRandomizedDelaySec={delay}\nAccuracySec=1s\nUnit={unit}\n\n'
                 '[Install]\nWantedBy=timers.target\n')
     return {'jobsearch-search.service': search,
-            'jobsearch-search.timer': timer('Hourly finite job discovery', '*-*-* *:00:00 America/Mexico_City', 120, 'jobsearch-search.service'),
+            'jobsearch-search.timer': timer('Hourly finite job discovery', ('*-*-* *:00:00 America/Mexico_City',), 120, 'jobsearch-search.service'),
             'jobsearch-report.service': report,
-            'jobsearch-report.timer': timer('Daily private report at 14:00 Mexico City', '*-*-* 14:00:00 America/Mexico_City', 0, 'jobsearch-report.service')}
+            'jobsearch-report.timer': timer('Daily private report at 14:00 with 14:15 retry, Mexico City',
+                ('*-*-* 14:00:00 America/Mexico_City', '*-*-* 14:15:00 America/Mexico_City'),
+                0, 'jobsearch-report.service')}
 
 
 def prepare_account(user, state, runner=_run):

@@ -101,3 +101,34 @@ No abrir dashboard/puerto público, túnel nuevo o enlace público. Entrega Work
 - [ ] Cero envíos confirmados; applied manual/simulado separados.
 - [ ] Probar backup corrupto/disco lleno en datos sintéticos, sin publicar información.
 - [ ] Comprobar privacidad/ACL y mecanismo Work real antes de afirmar entrega/lectura.
+
+
+## N-02 — segunda activación programada
+
+El timer existente declara dos OnCalendar: 14:00 y 14:15 America/Mexico_City.
+La segunda invoca exactamente el mismo servicio/CLI, con corte --at 14:00 y sin
+RandomizedDelaySec. No cambia la ventana ni la fecha del reporte. Si el primero
+terminó, el segundo verifica/reutiliza los mismos archivos, hashes y generated_at.
+Si a las 14:00 otra búsqueda tiene automation.lock, la salida sigue siendo 3;
+a las 14:15 se intenta de nuevo. No se interpreta el bloqueo como éxito ni fallo ATS.
+
+Compatibilidad documentada por [systemd.timer 252 de Debian 12](https://manpages.debian.org/bookworm/systemd/systemd.timer.5.en.html):
+OnCalendar admite varias asignaciones; cualquiera de ellas puede activar Unit.
+Persistent recupera una activación perdida al arrancar, no cada activación omitida.
+La CLI recupera fechas debidas acotadamente; su registro por archivos es durable.
+Se probaron procesos nuevos y conservación exacta de bytes, no un reinicio real
+ni un timer activo en este Cloud. El parser instalado aquí es systemd 257.
+
+Límites: si el lock sigue ocupado a las 14:15, la salida vuelve a ser 3. Si el mismo
+servicio sigue activo al llegar la segunda hora, systemd no crea otra instancia.
+Apagado, reloj incorrecto, disco, dependencias, recursos o un lock manual prolongado
+pueden retrasar ambos intentos; no se garantiza una ejecución antes de las 14:15.
+No existe bucle de reintentos. Tras resolver el problema se puede invocar generate
+manualmente o esperar la próxima activación: las fechas faltantes se recuperan y
+los reportes ya publicados no se regeneran.
+
+Checklist en LXC de prueba autorizado: verificar ambos próximos eventos, mantener
+un lock sintético a las 14:00, liberarlo antes de14:15 y comprobar salida 0/reporte
+único con corte 14:00. Repetir con reporte previo; verificar hashes/fecha originales.
+Probar lock en ambos horarios, reinicio y día omitido, observando delayed/remaining.
+No habilitar servicios por haber actualizado esta configuración en Git.

@@ -1,3 +1,11 @@
+## Corrección preproducción N-02
+
+- El mismo timer del reporte activa a las 14:00 y reintenta a las 14:15 en
+  America/Mexico_City. Corte 14:00 y publicación idempotente sin modificaciones.
+- Pruebas de lock ocupado, reintento, proceso reiniciado, día omitido, concurrencia
+  e integridad byte a byte. Calendarios estático/renderizado verificados con systemd.
+- No se activan servicios ni se añade un scheduler residente.
+
 ## Corrección preproducción R-01
 
 - matching_v4 interpreta etiquetas completas de ubicación exclusiva, incluidas
