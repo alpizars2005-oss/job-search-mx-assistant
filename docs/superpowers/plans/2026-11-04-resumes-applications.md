@@ -120,11 +120,11 @@ veredicto se registran en ese PR; nunca deducir CI de los tests locales. No merg
 
 ## Evidencia final antes de publicación
 
-- Python3.12.14: 259 unittest y259pytest+523subtests, aprobados.
-- Python3.10.22: 259 unittest, aprobados.
-- pipcheck, compileall, RuffE9/F, CLIhelp, preparaciónLinux ydiffcompleto: aprobados.
+- Python 3.12.14: 259 unittest y 259 pytest + 523 subtests, aprobados.
+- Python 3.10.22: 259 unittest, aprobados.
+- `pip check`, `compileall`, Ruff E9/F, CLI help, preparación Linux y diff completo: aprobados.
 - Revisiones de CV y SQLite separadas; restauración/replay, atribución y rutas
   corregidas con regresiones observadas fallar antes. Sin aserciones debilitadas.
-- Revisión final y verificación acotada: 16 pruebas+19subtests y6probesindependientes,
+- Revisión final y verificación acotada: 16 pruebas + 19 subtests y seis escenarios independientes,
   hallazgos cerrados. La configuración CI permanece con seis combinaciones.
 - Sin validación visual de Word/Tkinter, ATS reales, envíos o despliegue.
