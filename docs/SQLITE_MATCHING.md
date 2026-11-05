@@ -218,3 +218,29 @@ prueba gráfica interactiva, despliegue o auditoría de Claude.
 Tras revisión e integración de este PR, la Fase 4 necesitará autorización nueva
 y podrá reutilizar las identidades/snapshots. Aquí no se implementan CV,
 borradores, envío, notificaciones, scheduler ni cambios en PizzaLab.
+
+
+## Contrato actual de nuevas evaluaciones: matching_v6
+
+R-01b/N-03 completan las condiciones geográficas country-only y formatos ATS
+acotados. V4 podía persistir una prioridad incorrecta y reutilizarla en automatización;
+V6 obliga a calcular una evaluación nueva para el mismo input, sin tocar los JSON
+históricos legacy_v1/matching_v2/matching_v3/matching_v4/matching_v5. No es una migración de esquema.
+
+La identidad de vacante sigue siendo proveedor/tablero/ID; cambiar la versión del
+algoritmo crea un snapshot distinguible. Reobservar sin cambiar versión/inputs
+reutiliza esa evaluación y no duplica vacantes. Los reportes referencian evaluación,
+versión e inputs guardados; no reinterpretan snapshots antiguos con el código actual.
+
+Un permiso México y una restricción excluyente aplicables producen contradicción;
+una exclusión sola produce ineligible. Reglas de oficina/cliente/beneficio/horario
+no equivalen a residencia. Una restricción condicional queda unknown, con evidencia,
+sin convertir Remote/LATAM o EST en permiso de contratación. Ejemplos y límites en
+[hardening](PHASE_6_HARDENING.md). Los apartados de v2 anteriores son históricos.
+
+
+El candidato v5 publicado en 8bb2695 también podía guardar falsos descartes en frases
+sobre seguros/horarios, excepciones tras coma o condiciones pospuestas. V6 evita
+reutilizar esa caché: una regresión RED de observación v5 confirmó el problema y
+comprueba reevaluación a prioridad compatible, conservando el snapshot v5 intacto.
+La versión cambia por resultados persistibles distintos, no por estética.

@@ -198,7 +198,7 @@ No hay scheduler residente ni despliegue en PizzaLab.
 
 ## Hardening de Fase 6 (pendiente de integración)
 
-Matching `matching_v4`, controles privados POSIX, interrupciones sin penalizar fuentes,
+Matching `matching_v6`, controles privados POSIX, interrupciones sin penalizar fuentes,
 Retry-After durable y suspensión manual, health con estado activo y esquema SQLite 5.
 Telegram eliminado; datos históricos protegidos contra nuevas escrituras. No envíos.
 La matriz CI incorpora Python 3.11 junto a 3.10/3.12/3.13 en Windows y Ubuntu.

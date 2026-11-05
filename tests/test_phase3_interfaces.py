@@ -66,7 +66,7 @@ class Phase3CliTests(unittest.TestCase):
                 payload = json.loads(output)
                 self.assertEqual(len(payload["saved"]), 3)
                 for item in payload["saved"]:
-                    self.assertEqual(item["evaluation"]["algorithm_version"], "matching_v4")
+                    self.assertEqual(item["evaluation"]["algorithm_version"], "matching_v6")
                     self.assertEqual(item["evaluation"]["recommendation"], "insufficient_information")
         database = ApplicationDatabase(database_path())
         rows = database.list_vacancies()
@@ -147,12 +147,12 @@ class Phase3CliTests(unittest.TestCase):
         code, output, _ = self.invoke("analyze", str(posting), "--json")
         self.assertEqual(code, 0)
         result = json.loads(output)
-        self.assertEqual(result["algorithm_version"], "matching_v4")
+        self.assertEqual(result["algorithm_version"], "matching_v6")
         self.assertEqual(result["recommendation"], "ineligible")
         for language in ("es", "en"):
             code, output, _ = self.invoke("analyze", str(posting), "--language", language)
             self.assertEqual(code, 0)
-            self.assertIn("matching_v4", output)
+            self.assertIn("matching_v6", output)
             self.assertIn("100", output)
 
     def test_analyze_save_json_remains_machine_readable_and_idempotent(self):
@@ -237,7 +237,7 @@ class GuiHeadlessTests(unittest.TestCase):
                     result_text=Mock(),
                 )
                 JobSearchApp.analyze_current(app)
-                self.assertEqual(app.current_result.algorithm_version, "matching_v4")
+                self.assertEqual(app.current_result.algorithm_version, "matching_v6")
                 self.assertEqual(app.current_result.recommendation, "ineligible")
                 report = app.result_text.insert.call_args.args[1]
-                self.assertIn("matching_v4", report)
+                self.assertIn("matching_v6", report)
