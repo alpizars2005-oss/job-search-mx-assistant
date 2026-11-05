@@ -1,0 +1,8 @@
+# SOLO tras verificar namespaces en el LXC Debian12 real; no cambia Proxmox.
+# Instalar como jobsearch-search.service.d/namespace-hardening.conf y equivalente
+# jobsearch-report.service.d/namespace-hardening.conf únicamente tras el piloto.
+[Service]
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/jobsearch-assistant /var/log/jobsearch-assistant /var/backups/jobsearch-assistant

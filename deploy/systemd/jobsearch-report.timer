@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily private report at 14:00 Mexico City
+
+[Timer]
+OnCalendar=*-*-* 14:00:00 America/Mexico_City
+Persistent=true
+RandomizedDelaySec=0
+AccuracySec=1s
+Unit=jobsearch-report.service
+
+[Install]
+WantedBy=timers.target

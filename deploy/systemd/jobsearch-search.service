@@ -1,0 +1,31 @@
+[Unit]
+Description=Job search finite discovery (no submissions)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=jobsearch-assistant
+Group=jobsearch-assistant
+UMask=0077
+StateDirectory=jobsearch-assistant
+StateDirectoryMode=0700
+WorkingDirectory=/opt/jobsearch-assistant/current
+EnvironmentFile=/etc/jobsearch-assistant/runtime.env
+Environment=DRY_RUN=true AUTO_SUBMIT=false JOB_SEARCH_ASSISTANT_HOME=/var/lib/jobsearch-assistant
+Environment=PYTHONDONTWRITEBYTECODE=1
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+LimitCORE=0
+TasksMax=16
+MemoryMax=512M
+CPUQuota=100%
+TimeoutStopSec=30
+KillMode=control-group
+Restart=no
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=jobsearch-assistant
+TimeoutStartSec=660
+ExecStart=/opt/jobsearch-assistant/current/venv/bin/jobsearch automation run --config /etc/jobsearch-assistant/sources.json --budget-seconds 600
