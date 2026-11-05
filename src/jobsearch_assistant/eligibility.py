@@ -49,14 +49,16 @@ _GEOGRAPHIC_PEOPLE = r'(?:residents?|citizens?|applicants?|candidates?)'
 _GEOGRAPHIC_RESTRICTION = re.compile(
     rf'\b{_OTHER_COUNTRY}(?:[- ]based)?\s+{_GEOGRAPHIC_PEOPLE}\s+only\b|'
     rf'\b(?:only|restricted to|limited to|exclusively)\s+(?:{_GEOGRAPHIC_PEOPLE}\s+(?:of|in)\s+)(?:the\s+)?{_OTHER_COUNTRY}\b|'
-    rf'\b(?:open|available)\s+only\s+to\s+{_GEOGRAPHIC_PEOPLE}\s+(?:of|in)\s+(?:the\s+)?{_OTHER_COUNTRY}\b|'
+    rf'\b(?:open|available)\s+only\s+to\s+(?:{_GEOGRAPHIC_PEOPLE}\s+(?:of|in)\s+(?:the\s+)?{_OTHER_COUNTRY}|'
+    rf'{_OTHER_COUNTRY}\s+{_GEOGRAPHIC_PEOPLE})\b|'
+    rf'\bonly\s+{_OTHER_COUNTRY}\s+{_GEOGRAPHIC_PEOPLE}\s+(?:may|can)\s+apply\b|'
     rf'\bonly\s+(?:{_OTHER_COUNTRY}[- ]based\s+{_GEOGRAPHIC_PEOPLE}|'
     rf'{_GEOGRAPHIC_PEOPLE}\s+(?:(?:who|that)\s+(?:are\s+)?)?(?:located|based|residing|living)\s+in\s+(?:the\s+)?{_OTHER_COUNTRY})\b|'
     rf'\b(?:must|have to)\s+(?:reside|live|be based|be located)\s+in\s+(?:the\s+)?{_OTHER_COUNTRY}\b|'
     rf'\b(?:must|have to)\s+be\s+(?:a\s+)?{_OTHER_COUNTRY}\s+(?:residents?|citizens?)\b|'
     rf'\b(?:this|the|current)\s+(?:[\w-]+\s+){{0,4}}(?:role|position|vacancy)\s+(?:is\s+)?{_OTHER_COUNTRY}[- ]based\b|'
     rf'\bsolo\s+(?:contratamos\s+)?(?:candidatos?\s+)?(?:residentes?|ciudadanos?)\s+(?:de|en)\s+{_OTHER_COUNTRY}\b|'
-    rf'\b(?:residencia|contratacion)\s+exclusiva\s+en\s+{_OTHER_COUNTRY}\b')
+    rf'\b(?:residencia|contratacion)\s+exclusiva\s+(?:en|para\s+(?:residentes?|ciudadanos?)\s+(?:de|en))\s+{_OTHER_COUNTRY}\b')
 _GEOGRAPHIC_WAIVER = re.compile(
     rf'\b{_OTHER_COUNTRY}\s+(?:residence|residency|citizenship)\s+(?:is\s+)?not\s+(?:required|needed)\b')
 _REMOTE_COUNTRY_LOCATION = re.compile(

@@ -40,6 +40,41 @@ class GeographicHardeningTests(unittest.TestCase):
                 self.assertEqual(result.recommendation, 'ineligible')
                 self.assertIn('mexico_hiring', result.missing_requirements)
 
+    def test_reviewed_country_first_and_spanish_resident_restrictions(self):
+        for text in (
+            'Open only to US residents.',
+            'Only US residents may apply.',
+            'Contratación exclusiva para residentes de Estados Unidos.',
+        ):
+            for permission, status, recommendation in (
+                ('', 'unmet', 'ineligible'),
+                ('We can hire candidates residing in Mexico. ', 'contradictory', 'insufficient_information'),
+            ):
+                with self.subTest(text=text, permission=bool(permission)):
+                    job = self.job(permission + text)
+                    requirement = self.geography(job)
+                    self.assertEqual(requirement['status'], status)
+                    result = evaluate_match(self.profile, job)
+                    self.assertGreaterEqual(result.score, 80)
+                    self.assertEqual(result.recommendation, recommendation)
+                    self.assertNotIn('mexico_hiring_confirmed', result.positive_signals)
+
+    def test_reviewed_phrasings_preserve_negation_and_vacancy_scope(self):
+        for text in (
+            'This role is not open only to US residents.',
+            'Not only US residents may apply.',
+            'No contratación exclusiva para residentes de Estados Unidos.',
+            'Our US office is open only to US residents.',
+            'Sales roles are open only to US residents.',
+            'For sales roles, only US residents may apply.',
+            'Only US residents may apply for other roles.',
+            'Contratación exclusiva para residentes de Estados Unidos para otros puestos.',
+        ):
+            with self.subTest(text=text):
+                job = self.job('We can hire candidates residing in Mexico. ' + text)
+                self.assertEqual(self.geography(job)['status'], 'met')
+                self.assertEqual(evaluate_match(self.profile, job).recommendation, 'high_priority')
+
     def test_same_vacancy_permission_and_restriction_are_contradictory(self):
         permission = 'We can hire candidates residing in Mexico. '
         for text, location in (
