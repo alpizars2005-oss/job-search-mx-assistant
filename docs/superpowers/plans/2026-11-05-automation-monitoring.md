@@ -98,5 +98,5 @@ SECURITY/PRIVACY/ARCHITECTURE, CI y pruebas de interfaces.
 - [x] Documentar comandos, seguridad/rollback/checklist y requisitos futuros de
   PizzaLab, sin crear/instalar timers de Fase 6.
 - [x] Suite unittest/pytest/pip check/compileall y smoke CLI/GUI existente.
-- [ ] Revisión independiente de rama, corregir hallazgos verificables; commits.
+- [x] Revisión independiente de rama, corregir hallazgos verificables; commits.
 - [ ] PR a main y artefacto adjunto, verificar seis jobs del HEAD final, no fusionar.

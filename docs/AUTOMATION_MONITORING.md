@@ -70,6 +70,7 @@ versión original y transacción. Tablas:
 | `automation_observations` | Última huella semántica/perfil/algoritmo y evaluación reutilizable |
 | `automation_http_state` | Fallos y deadlines UTC por proveedor |
 | `automation_source_health` | Racha de runs con problemas, episodio y fechas de éxito/fallo |
+| `automation_notification_health` | Último drenaje significativo y métricas de entrega durables |
 | `notification_outbox` | Eventos mínimos únicos y estado/intentos de entrega |
 | `notification_delivery_state` | Cooldown compartido de Telegram |
 
@@ -121,7 +122,13 @@ contenido remoto, token, chat o excepciones externas. No hay telemetría ni serv
 `health` es de solo lectura: no crea/migra SQLite. Comprueba integridad rápida,
 esquema, último run/frescura, estado por proveedor, pausas, cola y estados ambiguos.
 La salud del último run no acredita conectividad cuando no había fuentes habilitadas;
-revisar también `sources`. Los contadores/fechas permiten observar duración, volumen,
+revisar también `sources`. Un fallo o entrega ambigua de un drenaje autorizado
+produce salida 1 y degrada health; se conservan las métricas por run en `runs/show`.
+Un run posterior sin notificar o con cero intentos diferidos no borra ese diagnóstico.
+Un drenaje significativo posterior permite observar recuperación. La búsqueda
+conserva su estado separado del resultado de entrega; cancelación/deadline durante
+el drenaje conservan salidas 130/4. Revisar también inciertos históricos de la cola.
+Los contadores/fechas permiten observar duración, volumen,
 rechazos, duplicados, prioridades, información pendiente y recuperación sin servicios
 de métricas externos. `runs/show` no exportan snapshots privados.
 
@@ -229,7 +236,20 @@ Codex Cloud sigue siendo un entorno de desarrollo, no alojamiento permanente.
 Los resultados finales de unittest/pytest, revisión y seis jobs CI del commit
 publicado se registran en el PR; las pruebas de CI no dependen de servicios externos.
 
-Verificación local previa a revisión: Python 3.12, **366 unittest** y
-**366 pytest +596 subtests**, aprobados. `pip check` y compilación aprobados.
+Verificación local final: Python 3.12, **371 unittest** y
+**371 pytest +604 subtests**, aprobados. `pip check` y compilación aprobados.
 Ruff E9/F no detecta errores nuevos; existe F401 histórico en
 `scripts/auto_update.py`, fuera de alcance y sin modificar.
+
+La revisión independiente de `45d0461` detectó dos Important: falsos éxitos tras
+fallos de Telegram y pérdida de Retry-After al cancelar en el límite de respuesta.
+El autor los corrigió con regresiones RED→GREEN y suite completa; no se atribuye
+al revisor una segunda inspección del código posterior. La respuesta completada
+se entrega desde IPC y guarda sus metadatos antes de cancelar; no se procesa otro
+JSON, matching o reintento después del límite. Un Retry-After jamás recibido por
+el proceso sigue siendo desconocido.
+
+Los tests no certifican un límite duro de VM SQL o de finalización para bases de
+tamaño arbitrario: el recorrido de borradores/historial y disco pueden añadir
+tiempo. Medir ese volumen y presupuesto en el host objetivo antes de programarlo;
+no se afirma validación de producción, Windows local, GUI visual o runtime Claude.
