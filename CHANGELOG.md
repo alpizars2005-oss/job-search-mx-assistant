@@ -10,6 +10,14 @@
   vacantes/evaluaciones v7 ni reescribir los snapshots históricos.
 - Sin cambios de timers, instaladores, backups, servicios, Telegram o transporte.
 
+## Corrección preproducción N-02
+
+- El mismo timer del reporte activa a las 14:00 y reintenta a las 14:15 en
+  America/Mexico_City. Corte 14:00 y publicación idempotente sin modificaciones.
+- Pruebas de lock ocupado, reintento, proceso reiniciado, día omitido, concurrencia
+  e integridad byte a byte. Calendarios estático/renderizado verificados con systemd.
+- No se activan servicios ni se añade un scheduler residente.
+
 ## Corrección preproducción R-01
 
 - matching_v4 interpreta etiquetas completas de ubicación exclusiva, incluidas
@@ -19,14 +27,25 @@
 - Las observaciones v3 se reevalúan bajo v4 sin reescribir historial ni snapshots.
 - Sin cambios en despliegue, fuentes activas, candidaturas o transporte externo.
 
-## Fase6 — hardening propuesto
+## Fase 6B — preparación propuesta, dependiente del hardening
+
+- Reportes diarios 14:00 México JSON/Markdown privados, catchup/idempotencia y SHA.
+- Separación de estados: descubierto/evaluado/preparado/aprobado/simulado/manual
+  applied; cero envíos reales confirmados sin recibos externos.
+- Bundles SQLite+CV+config+reportes, verificación/restore nuevo y retención dry-run.
+- Mutex también en comandos lectores que migran y durante la ventana GUI.
+- Releases offline SHA/wheel fijos, preflight Debian 12/Python 3.11, systemd oneshot/timers.
+- Entorno administrativo mínimo; sin despliegue, puertos, credenciales o mensajería.
+- Work oficial investigado, fallback local completo; entrega no configurada/verificada.
+
+## Fase 6 — hardening propuesto
 
 - matching_v3: restricciones geográficas, contradicciones y contexto de rol conservador.
 - Control local separado de errores ATS; Retry-After extremo suspendido sin truncación.
 - Almacenamiento privado POSIX compartido y validación de archivos/links/propietario.
 - Telegram retirado; esquema5 aditivo conserva historia y bloquea nuevas escrituras.
 - Recuperación de fuentes auditada, revisión tras restore y health activo/abandonado.
-- Claude bloquea flags/contexto debug; CI Windows/Ubuntu incorpora Python3.11.
+- Claude bloquea flags/contexto debug; CI Windows/Ubuntu incorpora Python 3.11.
 - Sin despliegue, revisión Claude real, mensajes ni envíos de candidaturas.
 
 # Changelog

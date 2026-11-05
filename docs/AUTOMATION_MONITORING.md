@@ -1,7 +1,7 @@
 # Automatización, recuperación y monitoreo
 
 Fase5 integrada en PR #10, base `cfa6a4d974ce129a2bc8aeeb4ee4d53b6afc44f7`.
-Hardening de Fase6 propuesto, pendiente de revisión/integración. No despliegue real.
+Hardening de Fase 6 propuesto, pendiente de revisión/integración. No despliegue real.
 
 ## Operación
 
@@ -142,3 +142,12 @@ por haber pasado pruebas headless. Codex Cloud no es alojamiento permanente.
 - [ ] Validar perfil/hechos/evidencias y fuentes sin asumir elegibilidad México.
 - [ ] Probar interrupción/reinicio/restore en copia sintética y respetar restricciones.
 - [ ] Validar recursos, backup conjunto, rollback y timers antes del piloto real.
+
+
+## Preparación dependiente B
+
+Reportes y backups completos están preparados en PR separado sobre A; no activos
+ni integrados. Comandos/temporalidad en [DAILY_REPORTS](DAILY_REPORTS.md), recuperación
+conjunto/retención en [STORAGE_RECOVERY](STORAGE_RECOVERY.md), instalación y checklist
+real en [DEPLOYMENT](DEPLOYMENT.md). GUI y lectores CLI que inicializan/migran ahora
+comparten mutex; cerrar la ventana antes de programar el mismo home.

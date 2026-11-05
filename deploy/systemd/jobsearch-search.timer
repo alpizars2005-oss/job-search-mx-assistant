@@ -1,0 +1,12 @@
+[Unit]
+Description=Hourly finite job discovery
+
+[Timer]
+OnCalendar=*-*-* *:00:00 America/Mexico_City
+Persistent=true
+RandomizedDelaySec=120
+AccuracySec=1s
+Unit=jobsearch-search.service
+
+[Install]
+WantedBy=timers.target

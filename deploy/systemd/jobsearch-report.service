@@ -1,0 +1,30 @@
+[Unit]
+Description=Private daily job search reports (no delivery)
+After=jobsearch-search.service
+
+[Service]
+Type=oneshot
+User=jobsearch-assistant
+Group=jobsearch-assistant
+UMask=0077
+StateDirectory=jobsearch-assistant
+StateDirectoryMode=0700
+WorkingDirectory=/opt/jobsearch-assistant/current
+EnvironmentFile=/etc/jobsearch-assistant/runtime.env
+Environment=DRY_RUN=true AUTO_SUBMIT=false JOB_SEARCH_ASSISTANT_HOME=/var/lib/jobsearch-assistant
+Environment=PYTHONDONTWRITEBYTECODE=1
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+LimitCORE=0
+TasksMax=16
+MemoryMax=512M
+CPUQuota=100%
+TimeoutStopSec=30
+KillMode=control-group
+Restart=no
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=jobsearch-assistant
+TimeoutStartSec=120
+ExecStart=/opt/jobsearch-assistant/current/venv/bin/jobsearch reports generate --config /etc/jobsearch-assistant/sources.json --timezone America/Mexico_City --at 14:00 --max-reports 31

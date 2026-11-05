@@ -264,3 +264,22 @@ Retry-After durable y suspensión manual, health con estado activo y esquema SQL
 Telegram eliminado; datos históricos protegidos contra nuevas escrituras. No envíos.
 La matriz CI incorpora Python 3.11 junto a 3.10/3.12/3.13 en Windows y Ubuntu.
 Ver [operación y recuperación](docs/AUTOMATION_MONITORING.md). PizzaLab sigue pendiente.
+
+## Preparación de operación y reportes (PR dependiente, sin despliegue)
+
+```bash
+jobsearch automation run --config /privado/sources.json --budget-seconds 600
+jobsearch reports generate --config /privado/sources.json
+jobsearch reports show 2026-11-04 --summary
+jobsearch storage backup --output /privado/backups/FECHA-ID --config /privado/sources.json
+jobsearch storage verify-backup /privado/backups/FECHA-ID
+jobsearch storage inventory --retention-days 90 --keep-backups 7
+```
+
+Reportes diarios privados 14:00 America/Mexico_City, recuperables e idempotentes.
+Backups completos SQLite+CV+config, restore a destino nuevo y retención sin borrado.
+Instalación offline fijada y systemd preparados, sin activar servicios. GUI mantiene
+exclusión sobre el mismo home mientras está abierta: cerrarla antes de backup/run.
+Work no tiene entrega configurada/verificada; cero envíos de candidaturas confirmados.
+Ver [producción/checklist](docs/DEPLOYMENT.md), [reportes](docs/DAILY_REPORTS.md) y
+[recuperación](docs/STORAGE_RECOVERY.md). No se modificó PizzaLab.

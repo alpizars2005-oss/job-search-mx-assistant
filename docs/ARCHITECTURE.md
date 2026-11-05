@@ -97,3 +97,18 @@ SQLite una garantía de exactly-once sobre un servicio remoto. Ver
 
 No hay daemon, servicio nuevo, scheduler residente o despliegue. El punto de entrada
 podrá invocarse desde un timer autorizado en Fase 6. Ver [operación](AUTOMATION_MONITORING.md).
+
+## Preparación operativa B, dependiente de A
+
+- daily_reports.py: calendario IANA, ventana diaria, snapshots privados, publicación
+  por fecha e integridad/idempotencia por archivos; no requiere migración SQLite 6.
+- storage.py: bundles completos, SQLitebackup, sello DELETE de copia, hash/inventario,
+  restore revocado y retención simulada; logs/backups externos configurables.
+- CLI y GUI comparten exclusión para toda ruta que puede inicializar/migrar/escribir;
+  bibliotecas embebidas requieren coordinación del caller.
+- scripts/production: build offline fijado y gestión de releases/cuenta/unidades
+  para Debian 12/Python 3.11 futuro. Ningún comando de app activa servicios.
+- systemd invocará una vez search/report; no daemon interno ni alojamiento Cloud.
+
+[Despliegue](DEPLOYMENT.md), [reportes/Work](DAILY_REPORTS.md),
+[backups/retención](STORAGE_RECOVERY.md). Sin integración/despliegue afirmados.

@@ -1,0 +1,13 @@
+[Unit]
+Description=Daily private report at 14:00 with 14:15 retry, Mexico City
+
+[Timer]
+OnCalendar=*-*-* 14:00:00 America/Mexico_City
+OnCalendar=*-*-* 14:15:00 America/Mexico_City
+Persistent=true
+RandomizedDelaySec=0
+AccuracySec=1s
+Unit=jobsearch-report.service
+
+[Install]
+WantedBy=timers.target

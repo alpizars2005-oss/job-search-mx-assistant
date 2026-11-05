@@ -175,3 +175,19 @@ En Windows usar el intérprete equivalente de `.venv\Scripts\python.exe`.
 cuando esté disponible. Desde Fase 2, `tests/test_exporters.py` usa TestCase y
 sus pruebas CSV también se ejecutan con el comando unittest de CI. Conservar la matriz Windows/Linux de CI y sus smoke
 tests. Registrar fallos y limitaciones sin ocultarlos ni ampliar la fase.
+
+## Preparación operativa de Fase 6
+
+- PR B apilado depende de hardening A: no confundir rama publicada con integración.
+- Producción fija SHA/wheel autenticados y no usa el actualizador de escritorio.
+  No ejecutar install/activate ni timers contra PizzaLab sin acceso/autorización.
+- Mantener RunLock compartido también en lectores que inicializan/migran. GUI
+  oficial lo conserva durante la ventana; cerrarla antes de mantenimiento.
+  APIs embebidas/escritores externos deben coordinarse explícitamente.
+- storage backup/restore son conjuntos privados verificados. Restore siempre nuevo,
+  revoca aprobaciones y exige revisar límites de fuentes, sin borrar restricciones.
+- Retención es inventario/dry-run, nunca borrar CV/evidencias/candidaturas/historia.
+- Reporte diario local 14:00 America/Mexico_City, una fecha inmutable, catchup acotado.
+  No presentar estado actual como histórico ni simulaciones/applied manual como envío.
+- Work continúa sin transporte/acceso privado verificado. No inventar APIs, activar
+  tareas/Drive/correo o afirmar delivered/read sin comprobante real.

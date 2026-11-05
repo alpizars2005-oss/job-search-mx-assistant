@@ -90,3 +90,21 @@ denegadas, sin checkout del PR. Activar requiere environment y coste autorizados
 el diff debe ser publicable porque upstream puede imprimirlo en logs. No hubo
 invocación real. Detalles: [AUTOMATION_MONITORING](docs/AUTOMATION_MONITORING.md)
 y [CLAUDE_REVIEW](docs/CLAUDE_REVIEW.md).
+
+## Preparación operativa y reportes
+
+RunLock compartido protege también inicialización/migraciones de lectores CLI,
+ventana GUI, reportes y bundles. Bibliotecas embebidas/escritores externos requieren
+coordinación explícita del caller; no hay exclusión entre hosts/clones independientes.
+Bundles usan backupAPI SQLite, sellan copia WAL a DELETE, inventario SHA exacto,
+verificación y publicación en destino nuevo. Restore revoca capacidades/cuarentena;
+no demuestra restricciones externas perdidas por la antigüedad de la copia.
+Retención no elimina datos. Reporte exportable contiene agregados; detalle local
+es privado. Nunca transportar CV/contacto por Work u otro servicio sin autorización.
+
+Instalador requiere artefactos autenticados/fijados, root administrativo únicamente
+para preparar cuenta/código, servicio sin privilegios. Subprocesos administrativos
+usan environment allowlist, sin secretos/PYTHONPATH/PIP_TARGET heredados. No hay
+index downloads ni autoupdate. Cambios de esquema rechazan rollback incompatible.
+Namespaces LXC son configuración opt-in verificada, no elevar privilegios para
+hacerlos funcionar. [Límites operativos](docs/DEPLOYMENT.md).
