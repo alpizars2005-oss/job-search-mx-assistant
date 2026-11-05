@@ -518,7 +518,7 @@ def _markdown(report):
         f"Ventana: {report['window']['start']} ≤ descubrimiento < {report['window']['end']}.",
         f"Generado: {report['generated_at']} · retraso: {report['delay_seconds']} segundos.",
         "",
-        "Reporte privado local. No entregado a ChatGPT Work ni leído por el usuario.",
+        "Reporte privado local. Sin comprobante de entrega a ChatGPT Work ni de lectura.",
         "",
         f"Nuevas vacantes: {summary['new_vacancies']}",
         f"Prioridad alta: {summary['high_priority']} · media: {summary['medium_priority']}.",
