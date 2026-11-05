@@ -266,10 +266,11 @@ class NotificationDispatcher:
                 UPDATE notification_outbox SET status=?,last_error=?,not_before=?,updated_at=?
                 WHERE id=? AND status='sending'
             ''', (status, error, not_before, _timestamp(), row['id']))
-            if not_before:
-                connection.execute('''
-                    UPDATE notification_delivery_state SET next_allowed_at=MAX(next_allowed_at,?) WHERE id=1
-                ''', (not_before,))
+            # Startup/preparation can delay actual POST after the claim. Spacing
+            # after completion is conservative and cannot shorten that interval.
+            connection.execute('''
+                UPDATE notification_delivery_state SET next_allowed_at=MAX(next_allowed_at,?,?) WHERE id=1
+            ''', (not_before, time.time() + self.config.min_interval))
         return status
 
     def drain(self, authorized: bool = False) -> dict:

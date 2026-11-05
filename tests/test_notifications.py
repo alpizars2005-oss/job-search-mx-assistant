@@ -328,6 +328,24 @@ class NotificationTests(unittest.TestCase):
         self.assertEqual(metrics['sent'], 2)
         self.assertGreaterEqual(starts[1] - starts[0], 3.09)
 
+    def test_transport_preparation_cannot_shorten_actual_delivery_spacing(self):
+        self.queue('first')
+        self.queue('second')
+        clock, starts = [10000.0], []
+        class LogicalControl(FakeControl):
+            def sleep(self, delay):
+                clock[0] += delay
+                super().sleep(delay)
+        def transport(*args):
+            if not starts:
+                clock[0] += 0.2  # Process startup/request preparation before sending.
+            starts.append(clock[0])
+            return response()
+        with patch('jobsearch_assistant.notifications.time.time', side_effect=lambda: clock[0]):
+            metrics = self.dispatch(transport, replace(CONFIG, max_messages=2), control=LogicalControl())
+        self.assertEqual(metrics['sent'], 2)
+        self.assertGreaterEqual(starts[1] - starts[0], 3.099)
+
     def test_two_processes_queue_same_event_once(self):
         context = multiprocessing.get_context('spawn')
         start, output = context.Event(), context.Queue()
