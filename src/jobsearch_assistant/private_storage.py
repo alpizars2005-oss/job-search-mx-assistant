@@ -216,6 +216,21 @@ def _external_sqlite_file(path, *, sidecar=False):
         os.close(descriptor)
 
 
+
+def _check_sqlite_sidecars(path, *, external_source, harden):
+    for suffix in ('-wal', '-shm', '-journal'):
+        sidecar = Path(str(path) + suffix)
+        if os.path.lexists(sidecar):
+            try:
+                if external_source:
+                    _external_sqlite_file(sidecar, sidecar=True)
+                else:
+                    protect_private_file(sidecar, harden=harden)
+            except FileNotFoundError:
+                # A concurrent SQLite writer may legitimately close/remove its
+                # auxiliary file. Other validation failures still fail closed.
+                continue
+
 def sqlite_private(value, *, timeout=30, read_only=False, harden=None, external_source=False, **options):
     if external_source and not read_only:
         raise PrivateStorageError('external_sqlite_requires_readonly')
@@ -232,26 +247,14 @@ def sqlite_private(value, *, timeout=30, read_only=False, harden=None, external_
     else:
         path = protect_private_file(path, create=not read_only, harden=harden)
     before = path.lstat()
-    for suffix in ('-wal', '-shm', '-journal'):
-        sidecar = Path(str(path) + suffix)
-        if os.path.lexists(sidecar):
-            if external_source:
-                _external_sqlite_file(sidecar, sidecar=True)
-            else:
-                protect_private_file(sidecar, harden=harden)
+    _check_sqlite_sidecars(path, external_source=external_source, harden=harden)
     target = path.as_uri() + '?mode=ro' if read_only else path
     connection = sqlite3.connect(target, timeout=timeout, uri=read_only, **options)
     try:
         if _identity(path.lstat()) != _identity(before):
             raise PrivateStorageError('private_storage_replaced')
         connection.execute('PRAGMA temp_store=MEMORY')
-        for suffix in ('-wal', '-shm', '-journal'):
-            sidecar = Path(str(path) + suffix)
-            if os.path.lexists(sidecar):
-                if external_source:
-                    _external_sqlite_file(sidecar, sidecar=True)
-                else:
-                    protect_private_file(sidecar, harden=harden)
+        _check_sqlite_sidecars(path, external_source=external_source, harden=harden)
         return connection
     except BaseException:
         connection.close()

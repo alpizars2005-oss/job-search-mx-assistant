@@ -13,6 +13,34 @@ from jobsearch_assistant.exporters import export_csv, export_json
 from jobsearch_assistant.migrations import backup_database, restore_backup
 
 
+class SQLiteSidecarRaceTests(unittest.TestCase):
+    def test_finished_writer_may_remove_its_journal_during_validation(self):
+        from jobsearch_assistant import private_storage
+        with tempfile.TemporaryDirectory() as directory:
+            home = private_storage.private_directory(Path(directory))
+            path = home / 'database.sqlite3'
+            connection = private_storage.sqlite_private(path)
+            connection.execute('CREATE TABLE preserved(value)')
+            connection.commit()
+            connection.close()
+            journal = Path(str(path) + '-journal')
+            private_storage.write_private(journal, b'')
+            original = private_storage.protect_private_file
+            seen = []
+            def completed_writer(value, **options):
+                if Path(value) == journal and not seen:
+                    seen.append(True)
+                    journal.unlink()
+                return original(value, **options)
+            with patch.object(private_storage, 'protect_private_file', side_effect=completed_writer):
+                connection = private_storage.sqlite_private(path)
+            try:
+                self.assertEqual(connection.execute('SELECT * FROM preserved').fetchall(), [])
+            finally:
+                connection.close()
+            self.assertEqual(seen, [True])
+
+
 @unittest.skipIf(os.name == 'nt', 'POSIX permission bits; Windows ACL reviewed separately')
 class PrivateStorageTests(unittest.TestCase):
     def setUp(self):
