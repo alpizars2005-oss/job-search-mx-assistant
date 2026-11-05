@@ -233,6 +233,21 @@ class GeographicLocationTests(unittest.TestCase):
                             self.assertTrue(any(self.permission.strip() in fact['span']
                                                 for fact in requirement['evidence']))
 
+    def test_closed_country_label_keeps_its_mexico_alternative_or_condition(self):
+        for location, conditional in (
+            ('Remote (US only) or Mexico', False),
+            ('Remote (US only), except Mexico', False),
+            ('Remote (US only) if tax approval is denied', True),
+        ):
+            for kind in (JobPosting, NormalizedJob):
+                for permission in (True, False):
+                    with self.subTest(location=location, kind=kind.__name__, permission=permission):
+                        job = self.audited_job(kind, location=location, permission=permission)
+                        expected = 'unknown' if conditional or not permission else 'met'
+                        self.assertEqual(self.requirement(job)['status'], expected)
+                        self.assertEqual(evaluate_match(self.profile, job).recommendation,
+                                         'high_priority' if expected == 'met' else 'insufficient_information')
+
     def test_mexico_alternatives_and_incidental_us_mentions_remain_eligible(self):
         for locations, extra in (
             (['Remote - Mexico'], ''),
@@ -303,7 +318,7 @@ class GeographicLocationTests(unittest.TestCase):
             self.assertNotEqual(current['evaluation_id'], previous)
             saved = {item['id']: item for item in database.list_evaluations(vacancy)}
             self.assertEqual(saved[previous], history)
-            self.assertEqual(saved[current['evaluation_id']]['algorithm_version'], 'matching_v6')
+            self.assertEqual(saved[current['evaluation_id']]['algorithm_version'], 'matching_v7')
             self.assertEqual(current['classification'], 'insufficient_information')
 
     def test_v4_cache_is_reevaluated_once_and_all_older_snapshot_bytes_survive(self):
@@ -341,41 +356,44 @@ class GeographicLocationTests(unittest.TestCase):
             with database._connection() as connection:
                 kept = [tuple(row) for row in connection.execute('''SELECT id,algorithm_version,
                     job_snapshot_json,profile_snapshot_json,evaluation_json FROM evaluations
-                    WHERE algorithm_version != 'matching_v6' ORDER BY id''')]
+                    WHERE algorithm_version != 'matching_v7' ORDER BY id''')]
             self.assertEqual(kept, history)
             evaluations = database.list_evaluations(vacancy)
             self.assertEqual(len(evaluations), 5)
             self.assertEqual(len(database.list_vacancies()), 1)
             new = next(item for item in evaluations if item['id'] == current['evaluation_id'])
-            self.assertEqual(new['algorithm_version'], 'matching_v6')
+            self.assertEqual(new['algorithm_version'], 'matching_v7')
             self.assertEqual(new['evaluation']['recommendation'], 'insufficient_information')
 
-    def test_published_v5_candidate_cache_cannot_reuse_a_false_exclusion(self):
+    def test_published_candidate_caches_cannot_reuse_false_exclusions(self):
         from jobsearch_assistant.automation_store import AutomationStore
         from jobsearch_assistant.database import ApplicationDatabase
         from jobsearch_assistant.models import EvaluationResult
         from jobsearch_assistant.workflow_contracts import content_digest, vacancy_digest
-        with tempfile.TemporaryDirectory() as directory:
-            database = ApplicationDatabase(Path(directory) / 'database.sqlite3')
-            job = self.audited_job(NormalizedJob,
-                clause='This role offers health insurance in the US only.')
-            vacancy = database.upsert_vacancy(job)
-            previous = database.save_evaluation(vacancy, self.profile,
-                EvaluationResult(87, 'insufficient_information', algorithm_version='matching_v5'), job=job)
-            history = database.list_evaluations(vacancy)[0]
-            with database._connection() as connection:
-                connection.execute('INSERT INTO automation_observations VALUES (?,?,?,?,?)',
-                    (vacancy, vacancy_digest(job), content_digest(self.profile.to_dict()),
-                     'matching_v5', previous))
-            store = AutomationStore(database)
-            run = store.start('synthetic', 'synthetic')
-            current = store.observe(run, job, self.profile)
-            store.finish(run, 'success', [])
-            self.assertEqual(current['change'], 'reevaluated')
-            self.assertNotEqual(current['evaluation_id'], previous)
-            self.assertEqual(current['classification'], 'high_priority')
-            kept = next(item for item in database.list_evaluations(vacancy) if item['id'] == previous)
-            self.assertEqual(kept, history)
+        for version, location, clause in (
+            ('matching_v5', 'Remote', 'This role offers health insurance in the US only.'),
+            ('matching_v6', 'Remote (US only) or Mexico', ''),
+        ):
+            with self.subTest(version=version), tempfile.TemporaryDirectory() as directory:
+                database = ApplicationDatabase(Path(directory) / 'database.sqlite3')
+                job = self.audited_job(NormalizedJob, location=location, clause=clause)
+                vacancy = database.upsert_vacancy(job)
+                previous = database.save_evaluation(vacancy, self.profile,
+                    EvaluationResult(87, 'insufficient_information', algorithm_version=version), job=job)
+                history = database.list_evaluations(vacancy)[0]
+                with database._connection() as connection:
+                    connection.execute('INSERT INTO automation_observations VALUES (?,?,?,?,?)',
+                        (vacancy, vacancy_digest(job), content_digest(self.profile.to_dict()),
+                         version, previous))
+                store = AutomationStore(database)
+                run = store.start('synthetic', 'synthetic')
+                current = store.observe(run, job, self.profile)
+                store.finish(run, 'success', [])
+                self.assertEqual(current['change'], 'reevaluated')
+                self.assertNotEqual(current['evaluation_id'], previous)
+                self.assertEqual(current['classification'], 'high_priority')
+                kept = next(item for item in database.list_evaluations(vacancy) if item['id'] == previous)
+                self.assertEqual(kept, history)
 
 
 if __name__ == '__main__':

@@ -220,12 +220,13 @@ y podrá reutilizar las identidades/snapshots. Aquí no se implementan CV,
 borradores, envío, notificaciones, scheduler ni cambios en PizzaLab.
 
 
-## Contrato actual de nuevas evaluaciones: matching_v6
+## Contrato actual de nuevas evaluaciones: matching_v7
 
 R-01b/N-03 completan las condiciones geográficas country-only y formatos ATS
 acotados. V4 podía persistir una prioridad incorrecta y reutilizarla en automatización;
-V6 obliga a calcular una evaluación nueva para el mismo input, sin tocar los JSON
-históricos legacy_v1/matching_v2/matching_v3/matching_v4/matching_v5. No es una migración de esquema.
+V7 obliga a calcular una evaluación nueva para el mismo input, sin tocar los JSON
+históricos legacy_v1/matching_v2/matching_v3/matching_v4/matching_v5/matching_v6.
+No es una migración de esquema.
 
 La identidad de vacante sigue siendo proveedor/tablero/ID; cambiar la versión del
 algoritmo crea un snapshot distinguible. Reobservar sin cambiar versión/inputs
@@ -239,8 +240,8 @@ sin convertir Remote/LATAM o EST en permiso de contratación. Ejemplos y límite
 [hardening](PHASE_6_HARDENING.md). Los apartados de v2 anteriores son históricos.
 
 
-El candidato v5 publicado en 8bb2695 también podía guardar falsos descartes en frases
-sobre seguros/horarios, excepciones tras coma o condiciones pospuestas. V6 evita
-reutilizar esa caché: una regresión RED de observación v5 confirmó el problema y
-comprueba reevaluación a prioridad compatible, conservando el snapshot v5 intacto.
+Los candidatos v5 (8bb2695) y v6 (249001e) publicados podían guardar falsos descartes
+por contexto o alternativas tras paréntesis. V7 evita reutilizar esas cachés:
+regresiones RED de observaciones v5/v6 confirmaron el problema y comprueban
+reevaluación a prioridad compatible, conservando cada snapshot histórico intacto.
 La versión cambia por resultados persistibles distintos, no por estética.

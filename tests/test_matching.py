@@ -15,12 +15,12 @@ class MatchingTests(unittest.TestCase):
                               description='Entry-level bilingual English role using Linux, Python and troubleshooting.')
 
     def test_new_evaluations_export_the_current_algorithm_version(self):
-        self.assertEqual(getattr(matching, 'ALGORITHM_VERSION', None), 'matching_v6')
+        self.assertEqual(getattr(matching, 'ALGORITHM_VERSION', None), 'matching_v7')
         self.assertEqual(evaluate_match(self.profile, self.job).algorithm_version, matching.ALGORITHM_VERSION)
 
     def test_known_skill_remote_signals_survive_essential_unknown(self):
         result = evaluate_match(self.profile, self.job)
-        self.assertEqual(result.algorithm_version, 'matching_v6')
+        self.assertEqual(result.algorithm_version, 'matching_v7')
         self.assertGreaterEqual(result.score, 70)
         self.assertIn('python', result.matched_skills)
         self.assertIn('remote_match', result.positive_signals)
@@ -85,8 +85,8 @@ class MatchingTests(unittest.TestCase):
         self.assertEqual(evaluate_match(self.profile, self.job).to_dict(), result.to_dict())
         self.assertEqual(explain_evaluation(result), spanish)
         self.assertIn('description', english)
-        self.assertIn('Algoritmo: matching_v6', spanish)
-        self.assertIn('Algorithm: matching_v6', english)
+        self.assertIn('Algoritmo: matching_v7', spanish)
+        self.assertIn('Algorithm: matching_v7', english)
 
     def test_exact_score_boundaries_are_applied_after_eligibility(self):
         for owned_count, matched_count, language, score, classification in (
