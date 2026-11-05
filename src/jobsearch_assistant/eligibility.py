@@ -243,6 +243,12 @@ def _mexico(segments):
         if (_REMOTE_COUNTRY_LOCATION.fullmatch(label) or _COUNTRY_LOCATION.fullmatch(label)):
             if not mexico_alternative or re.search(r'\bonly\b', label):
                 negative.extend(facts)
+        elif not mexico_alternative:
+            # One string field may contain several complete location labels.
+            # Keep each recognized restriction when the whole field is a list.
+            negative.extend(item for item in facts
+                if _REMOTE_COUNTRY_LOCATION.fullmatch(_text(item).rstrip(';'))
+                or _COUNTRY_LOCATION.fullmatch(_text(item).rstrip(';')))
     actor = r'we\s+(?:(?:can|are able to|are)\s+)?(?:hire|hiring|employ|engage)'
     people = r'(?:candidates?|applicants?|people|employees?|residents?|engineers?|developers?|workers?)'
     residence = (rf'{people}\s+(?:(?:who|that)\s+(?:are\s+)?)?'

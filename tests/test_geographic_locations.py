@@ -90,6 +90,23 @@ class GeographicLocationTests(unittest.TestCase):
                     self.assertEqual(evaluate_match(self.profile, job).recommendation,
                                      'insufficient_information')
 
+    def test_multiple_country_bound_labels_in_one_field_keep_each_restriction(self):
+        for label, expected_spans in (
+            ('Remote - US; Remote - Canada', ['Remote - US;', 'Remote - Canada']),
+            ('Remote - US\nRemote - Canada', ['Remote - US', 'Remote - Canada']),
+            ('United States; Canada', ['United States;', 'Canada']),
+        ):
+            for kind in (JobPosting, NormalizedJob):
+                with self.subTest(label=label, kind=kind.__name__):
+                    job = self.job(kind, [label])
+                    requirement = self.requirement(job)
+                    self.assertEqual(requirement['status'], 'contradictory')
+                    self.assertEqual(evaluate_match(self.profile, job).recommendation,
+                                     'insufficient_information')
+                    spans = [fact['span'] for fact in requirement['evidence']
+                             if fact['field'].startswith('location')]
+                    self.assertEqual(spans, expected_spans)
+
     def test_v3_observation_is_reevaluated_without_rewriting_its_historical_snapshot(self):
         from jobsearch_assistant.automation_store import AutomationStore
         from jobsearch_assistant.database import ApplicationDatabase

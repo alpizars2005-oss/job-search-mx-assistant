@@ -75,3 +75,9 @@ históricos automáticamente. Resultados GREEN/suites/CI del SHA final en el PR.
 Checklist manual: revisar evidencia de exclusión y contradicción de las siete
 etiquetas, confirmar listas US/México permitidas sin exclusividad explícita y
 verificar nueva evaluación v4 junto al histórico v3. No activar fuentes o servicios.
+
+La revisión interna independiente de0a3b96c encontró una regresión adicional:
+dos etiquetas completas dentro de un mismo campo (US; Canadá) perdían su exclusión.
+Se reprodujeron seis subtests RED en ambos modelos; se conserva ahora cada span
+reconocido cuando el campo reúne varias etiquetas y no incluye alternativa México.
+La revisión corresponde a ese SHA, no constituye una nueva revisión de Claude.
