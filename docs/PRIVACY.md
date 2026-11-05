@@ -57,3 +57,16 @@ proveedor y puede imprimirlo en logs de Actions: revisar previamente secretos/da
 personales, protección del environment, retención y coste. Nunca incluir documentos
 privados para facilitar la revisión. Ver [operación](AUTOMATION_MONITORING.md) y
 [revisión preparada](CLAUDE_REVIEW.md).
+
+## Reportes y conjuntos privados de Fase 6
+
+Reportes locales incluyen empresas/vacantes/enlaces, metadata de CV y seguimiento;
+no se publican. `reports show` solicita detalle privado; `--summary` limita salida
+a agregados, que aún revelan fechas/actividad. Generated/stored no equivalen a
+entrega/lectura: no hay transporte Work/Drive/email configurado ni API inventada.
+No se crearon tareas ni se consultaron cuentas personales durante investigación.
+
+Bundles contienen SQLite con snapshots completos, CV, evidencia, configuración y
+reportes. Mantenerlos fuera de Git, verificar ACL/cifrado/custodia si salen del host.
+Manifest SHA no anonimiza ni certifica autoría. Inventory solo simula retención;
+no borra historia o documentos. Journal solo recibe JSON redactado, sin CV/contacto.

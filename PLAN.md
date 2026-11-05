@@ -17,8 +17,21 @@ health distingue ejecución activa y abandono. Claude continúa desactivado con
 checks de debug adicionales. CI exige ocho combinaciones de Python/OS.
 Ver [operación](docs/AUTOMATION_MONITORING.md) y
 [plan](docs/superpowers/plans/2026-11-04-phase6-hardening.md).
-Infraestructura y reportes diarios tendrán entrega dependiente separada; no hay
-despliegue, acceso PizzaLab, mensajes ni revisión real de Claude en esta misión.
+Infraestructura y reportes diarios están preparados en entrega apilada dependiente;
+no hay despliegue, acceso PizzaLab, mensajes ni revisión real de Claude en esta misión.
+
+## Estado de preparación B (propuesto, no integrado)
+
+Unidades systemd oneshot y timers horario/diario, release offline fijada por SHA,
+instalador/preflight Debian 12/Python 3.11 y rollback compatible. Reportes privados
+JSON/Markdown 14:00 America/Mexico_City con catchup/idempotencia y distinción de
+simulaciones/manual-applied/envíos confirmados 0. Backup conjunto hash/verificado,
+restore a destino nuevo con revocación/cuarentena, retención solo inventario.
+Work investigado: sin acceso LXC/endpoint autorizado verificable, fallback local
+completo y ningún transporte activado. [Despliegue](docs/DEPLOYMENT.md),
+[reportes](docs/DAILY_REPORTS.md), [recuperación](docs/STORAGE_RECOVERY.md).
+HARDENING PENDIENTE mientras los PRs no estén integrados; no declarar producción.
+
 
 ## Estado de Fase 5 (histórico, integrado en PR #10)
 
