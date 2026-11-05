@@ -50,6 +50,24 @@ class StorageTests(unittest.TestCase):
             connection.close()
         self.assertEqual((restored / 'resumes' / 'evidence' / 'proof').read_bytes(), b'synthetic-evidence')
 
+    def test_wal_snapshot_is_self_contained_and_preserves_committed_data(self):
+        connection = sqlite3.connect(self.database.path)
+        try:
+            self.assertEqual(connection.execute('PRAGMA journal_mode=WAL').fetchone()[0], 'wal')
+            connection.execute("INSERT INTO meta VALUES('wal_test','committed')")
+            connection.commit()
+            self.assertTrue(Path(str(self.database.path) + '-wal').exists())
+            manifest = backup_bundle(self.home, self.destination)
+            self.assertEqual(verify_bundle(self.destination), manifest)
+            self.assertFalse(any(name.endswith(('-wal', '-shm', '-journal')) for name in manifest['files']))
+            self.assertEqual(connection.execute('PRAGMA journal_mode').fetchone()[0], 'wal')
+            restored = self.root / 'wal-restored'
+            restore_bundle(self.destination, restored)
+            with sqlite3.connect(restored / 'applications.sqlite3') as recovered:
+                self.assertEqual(recovered.execute("SELECT value FROM meta WHERE key='wal_test'").fetchone()[0], 'committed')
+        finally:
+            connection.close()
+
     def test_tampering_extra_files_and_unsafe_manifest_paths_fail(self):
         backup_bundle(self.home, self.destination)
         original = (self.destination / 'profile.json').read_bytes()
@@ -100,6 +118,7 @@ class StorageTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 2)  # Historical manual CLI errors stay2.
         self.assertIn('run_locked', completed.stderr)
         self.assertNotIn(str(self.home), completed.stdout + completed.stderr)
+
         self.assertEqual((self.home / 'settings.json').read_bytes(), b'{"language":"es"}')
         completed = subprocess.run([sys.executable, '-m', 'jobsearch_assistant', 'storage',
                                     'backup', '--output', str(self.destination)],
@@ -108,6 +127,31 @@ class StorageTests(unittest.TestCase):
         self.assertIs(json.loads(completed.stdout)['verified'], True)
         self.assertNotIn(str(self.home), completed.stdout + completed.stderr)
 
+    def test_nominal_readers_cannot_migrate_or_initialize_while_snapshot_locked(self):
+        from test_telegram_retirement import make_four
+        path = self.home / 'applications.sqlite3'
+        path.unlink()
+        make_four(path)
+        before = path.read_bytes()
+        environment = {**os.environ, 'JOB_SEARCH_ASSISTANT_HOME': str(self.home)}
+        for command in (['applications', 'list'], ['vacancies', 'list'], ['doctor'],
+                        ['export', '--format', 'json', '--output', str(self.root / 'export.json')]):
+            with self.subTest(command=command), RunLock(self.home / 'automation.lock'):
+                completed = subprocess.run([sys.executable, '-m', 'jobsearch_assistant', *command],
+                    capture_output=True, text=True, env=environment, timeout=10)
+                self.assertEqual(completed.returncode, 2)
+                self.assertIn('run_locked', completed.stderr)
+            self.assertEqual(path.read_bytes(), before)
+            self.assertEqual(list(self.home.glob('*.schema4-*.bak')), [])
+
+    def test_gui_lifecycle_uses_same_mutex_before_constructing_window(self):
+        from jobsearch_assistant.gui import main
+        with patch.dict(os.environ, {'JOB_SEARCH_ASSISTANT_HOME': str(self.home)}), \
+                patch('jobsearch_assistant.gui.JobSearchApp') as app, \
+                RunLock(self.home / 'automation.lock'), self.assertRaises(SystemExit) as caught:
+            main()
+        self.assertEqual(caught.exception.code, 2)
+        app.assert_not_called()
     def test_disk_full_and_file_change_fail_without_published_snapshot(self):
         with patch('jobsearch_assistant.storage.shutil.disk_usage', return_value=(10, 10, 0)), self.assertRaises(OSError):
             backup_bundle(self.home, self.destination)

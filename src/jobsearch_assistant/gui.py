@@ -379,8 +379,23 @@ class JobSearchApp(tk.Tk):
 
 
 def main() -> None:
-    app = JobSearchApp()
-    app.mainloop()
+    # Keep the interactive writer quiescent with respect to search/backup. Close
+    # this window before starting maintenance against the same private home.
+    import sys
+    from .config import data_home
+    from .private_storage import private_directory
+    from .runtime_control import RunLock
+    from .workflow_contracts import WorkflowError, require_dry_run
+    try:
+        require_dry_run()
+        home = private_directory(data_home())
+        with RunLock(home / 'automation.lock'):
+            app = JobSearchApp()
+            app.mainloop()
+    except (WorkflowError, OSError):
+        print('Local workspace unavailable / Almacén local no disponible', file=sys.stderr)
+        raise SystemExit(2)
+
 
 
 if __name__ == "__main__":

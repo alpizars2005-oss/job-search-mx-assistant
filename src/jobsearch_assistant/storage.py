@@ -140,6 +140,14 @@ def backup_bundle(home, destination, *, config=None):
         private_directory(staging)
         try:
             backup_database(home / 'applications.sqlite3', staging / 'applications.sqlite3')
+            # Seal only our exclusive copy. A WAL header would let a read-only
+            # verifier create sidecars after the manifest inventory was frozen.
+            snapshot = sqlite_private(staging / 'applications.sqlite3')
+            try:
+                if snapshot.execute('PRAGMA journal_mode=DELETE').fetchone()[0] != 'delete':
+                    raise WorkflowError('backup_snapshot_not_sealed')
+            finally:
+                snapshot.close()
             for name, source in files.items():
                 _copy_file(source, staging / name)
             if config_bytes is not None:

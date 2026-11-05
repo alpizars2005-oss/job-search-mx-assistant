@@ -347,6 +347,10 @@ def _dispatch(args) -> None:
                   "Falló el respaldo/restauración; usa un origen válido y un destino nuevo.", file=sys.stderr)
             code = 2
         raise SystemExit(code)
+    if args.command == 'gui':
+        from .gui import main as gui_main
+        gui_main()
+        raise SystemExit(0)
     ensure_workspace()
     if args.command == "init":
         code = command_init(args)
@@ -372,31 +376,24 @@ def _dispatch(args) -> None:
         code = 0
     elif args.command == "doctor":
         code = command_doctor()
-    elif args.command == "gui":
-        from .gui import main as gui_main
-
-        gui_main()
-        code = 0
     else:
         code = 2
     raise SystemExit(code)
 
 
-def _writes_workspace(args):
-    if args.command in {'init', 'settings', 'candidacies', 'resumes'}:
-        return True
-    if args.command == 'profile':
-        return args.profile_command == 'import'
-    if args.command == 'applications':
-        return args.application_command == 'update'
-    if args.command == 'vacancies':
-        return args.vacancy_command in {'import', 'evaluate'}
-    return args.command in {'analyze', 'discover'} and args.save
+def _initializes_workspace(args):
+    # Nominal readers call ensure_workspace and may migrate SQLite as well.
+    # Specialized operational commands own their lock/read-only boundaries.
+    if args.command in {'automation', 'reports', 'storage', 'database', 'gui'}:
+        return False
+    if args.command == 'discover':
+        return args.save
+    return True
 
 
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
-    if _writes_workspace(args):
+    if _initializes_workspace(args):
         from .private_storage import private_directory
         from .runtime_control import RunLock
         from .workflow_contracts import WorkflowError, require_dry_run
