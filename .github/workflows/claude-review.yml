@@ -1,0 +1,124 @@
+name: Claude review (manual, disabled by default)
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Same-repository, non-fork pull request targeting main
+        required: true
+        type: string
+      head_sha:
+        description: Exact 40-character lowercase PR head SHA approved for review
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: claude-review-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  review:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      vars.CLAUDE_REVIEW_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: claude-review
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read # Verify the environment's required human reviewers.
+    env:
+      CLAUDE_REVIEW_ENABLED: ${{ vars.CLAUDE_REVIEW_ENABLED }}
+      REVIEW_PR_NUMBER: ${{ inputs.pr_number }}
+      REVIEW_HEAD_SHA: ${{ inputs.head_sha }}
+      ACTIONS_STEP_DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
+    steps:
+      - name: Read only trusted workflow revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /scripts/prepare_claude_review.py
+            /prompts/claude-review.md
+
+      - name: Isolate trusted helpers from the clean review directory
+        shell: bash
+        run: |
+          mkdir "$RUNNER_TEMP/claude-review-trusted"
+          mv scripts/prepare_claude_review.py "$RUNNER_TEMP/claude-review-trusted/"
+          mv prompts/claude-review.md "$RUNNER_TEMP/claude-review-trusted/"
+          rmdir scripts prompts
+
+      - name: Validate approval configuration and prepare immutable diff
+        id: prepare
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          python "$RUNNER_TEMP/claude-review-trusted/prepare_claude_review.py"
+          --output-dir "$RUNNER_TEMP/claude-review-data"
+
+      - name: Require a separately authorized review credential
+        shell: bash
+        env:
+          REVIEW_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$REVIEW_API_KEY" ]; then
+            echo 'Claude no ejecutado: falta una credencial autorizada.' >&2
+            exit 2
+          fi
+
+      # Explicit prompt selects agent mode. No GitHub MCP tools are requested.
+      # The wildcard deny removes built-in AND MCP tools; empty allowedTools
+      # alone would only disable automatic permission approval.
+      - name: Independent static review without tools
+        id: claude
+        uses: anthropics/claude-code-action@c0949c50a78c1ec8ce2647db36629b870e715d0c # 2026-11-04; Claude Code 2.1.318
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
+          prompt: ${{ steps.prepare.outputs.prompt }}
+          track_progress: "false"
+          use_commit_signing: "false"
+          include_fix_links: "false"
+          display_report: "false"
+          show_full_output: "false"
+          settings: '{"permissions":{"deny":["*"]},"hooks":{}}'
+          claude_args: >-
+            --bare --restricted --disallowedTools '*'
+            --strict-mcp-config --mcp-config '{"mcpServers":{}}'
+            --permission-prompts none --max-turns 1 --max-budget-usd 1
+            --append-system-prompt-file "${{ runner.temp }}/claude-review-trusted/claude-review.md"
+
+      - name: Reject stale selection and extract only the final report
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEW_EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+        run: |
+          python "$RUNNER_TEMP/claude-review-trusted/prepare_claude_review.py" \
+            --output-dir "$RUNNER_TEMP/claude-review-final"
+          cmp "$RUNNER_TEMP/claude-review-data/manifest.json" \
+            "$RUNNER_TEMP/claude-review-final/manifest.json"
+          python "$RUNNER_TEMP/claude-review-trusted/prepare_claude_review.py" \
+            --collect-report "$REVIEW_EXECUTION_FILE" \
+            --manifest "$RUNNER_TEMP/claude-review-data/manifest.json" \
+            --report-output "$RUNNER_TEMP/claude-review-data/report.json"
+
+      - name: Retain preparation evidence and any validated report
+        if: always() && steps.prepare.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: claude-review-${{ inputs.head_sha }}
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/claude-review-data/manifest.json
+            ${{ runner.temp }}/claude-review-data/report.json
