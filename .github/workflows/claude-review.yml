@@ -35,8 +35,29 @@ jobs:
       CLAUDE_REVIEW_ENABLED: ${{ vars.CLAUDE_REVIEW_ENABLED }}
       REVIEW_PR_NUMBER: ${{ inputs.pr_number }}
       REVIEW_HEAD_SHA: ${{ inputs.head_sha }}
-      ACTIONS_STEP_DEBUG: ${{ secrets.ACTIONS_STEP_DEBUG }}
+      REVIEW_DEBUG_SECRET_STEP: ${{ secrets.ACTIONS_STEP_DEBUG }}
+      REVIEW_DEBUG_VAR_STEP: ${{ vars.ACTIONS_STEP_DEBUG }}
+      REVIEW_DEBUG_SECRET_RUNNER: ${{ secrets.ACTIONS_RUNNER_DEBUG }}
+      REVIEW_DEBUG_VAR_RUNNER: ${{ vars.ACTIONS_RUNNER_DEBUG }}
     steps:
+      # runner context is valid at step scope, not jobs.<id>.if or job env.
+      # Reject diagnostics before checkout, diff reads, or review credentials.
+      - name: Reject diagnostic logging before preparing review input
+        shell: bash
+        env:
+          REVIEW_RUNNER_DEBUG_CONTEXT: ${{ runner.debug }}
+        run: |
+          for flag in "$REVIEW_DEBUG_SECRET_STEP" "$REVIEW_DEBUG_VAR_STEP" \
+                      "$REVIEW_DEBUG_SECRET_RUNNER" "$REVIEW_DEBUG_VAR_RUNNER" \
+                      "$REVIEW_RUNNER_DEBUG_CONTEXT" "${RUNNER_DEBUG:-}" \
+                      "${ACTIONS_STEP_DEBUG:-}" "${ACTIONS_RUNNER_DEBUG:-}"; do
+            flag="${flag//[[:space:]]/}"
+            if [[ "${flag,,}" == true || "$flag" == 1 ]]; then
+              echo 'review_debug_logging_forbidden' >&2
+              exit 2
+            fi
+          done
+
       - name: Read only trusted workflow revision
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -61,6 +82,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          REVIEW_RUNNER_DEBUG_CONTEXT: ${{ runner.debug }}
         run: >-
           python "$RUNNER_TEMP/claude-review-trusted/prepare_claude_review.py"
           --output-dir "$RUNNER_TEMP/claude-review-data"
@@ -101,6 +123,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          REVIEW_RUNNER_DEBUG_CONTEXT: ${{ runner.debug }}
           REVIEW_EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
         run: |
           python "$RUNNER_TEMP/claude-review-trusted/prepare_claude_review.py" \

@@ -16,6 +16,7 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from functools import wraps
 from pathlib import Path
+from .private_storage import private_directory, private_path, private_parents, read_private
 
 from .resume_documents import render_document, valid_document_text
 from .sources.models import NormalizedJob
@@ -123,8 +124,10 @@ def _path(value: object, *, outside: bool = True) -> Path:
     return result
 
 
-def _read(path: Path, limit: int) -> bytes:
+def _read(path: Path, limit: int, *, private=False) -> bytes:
     path = _path(path)
+    if private:
+        return read_private(path, limit, immutable=True)
     _require(stat.S_ISREG(path.lstat().st_mode), 'invalid_resume_file')
     descriptor = os.open(path, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0)
                          | getattr(os, 'O_BINARY', 0) | getattr(os, 'O_NONBLOCK', 0))
@@ -145,7 +148,7 @@ def _unique_object(pairs):
 
 
 def _load(path: Path, limit: int) -> dict:
-    raw = _read(path, limit)
+    raw = _read(path, limit, private=True)
     result = json.loads(raw.decode('utf-8'), object_pairs_hook=_unique_object)
     _require(type(result) is dict and _bounded_json(result, limit) == raw,
              'invalid_resume_manifest')
@@ -260,20 +263,24 @@ class ResumeStore:
     @_safe
     def __init__(self, root: Path):
         self.root = _path(root)
-        self.root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        private_directory(self.root)
         for name in ('evidence', 'masters', 'documents', 'versions'):
             directory = _path(self.root / name)
-            directory.mkdir(mode=0o700, exist_ok=True)
+            private_directory(directory)
             _require(directory.is_dir(), 'invalid_resume_path')
 
     def _publish(self, path: Path, data: bytes) -> bool:
         """Atomic no-clobber publication; a hard link exposes only complete bytes."""
         path = _path(path)
+        private_path(path)
+        private_parents(path.parent)
         _require(path.parent.is_dir(), 'invalid_resume_path')
         descriptor, temporary = tempfile.mkstemp(prefix='.pending-', dir=path.parent)
         temporary = Path(temporary)
         try:
             with os.fdopen(descriptor, 'wb') as handle:
+                if os.name == 'posix':
+                    os.fchmod(handle.fileno(), 0o600)
                 handle.write(data)
                 handle.flush()
                 os.fsync(handle.fileno())
@@ -293,7 +300,7 @@ class ResumeStore:
 
     def _store_bytes(self, path: Path, data: bytes) -> None:
         self._publish(path, data)
-        _require(_read(path, len(data)) == data, 'resume_integrity_error')
+        _require(_read(path, len(data), private=True) == data, 'resume_integrity_error')
 
     @_safe
     def import_master(self, payload: dict, *, base_dir: Path) -> str:
@@ -329,7 +336,7 @@ class ResumeStore:
         _validate_master(master, stored=True)
         _require(content_digest(master) == master_id, 'resume_integrity_error')
         for evidence in master['evidence']:
-            data = _read(self.root / 'evidence' / (evidence['sha256'] + '.bin'), MAX_EVIDENCE_BYTES)
+            data = _read(self.root / 'evidence' / (evidence['sha256'] + '.bin'), MAX_EVIDENCE_BYTES, private=True)
             _require(len(data) == evidence['size'] and _digest(data) == evidence['sha256'],
                      'resume_evidence_integrity')
         return {'master_id': master_id, **master}
@@ -399,7 +406,7 @@ class ResumeStore:
                  and vacancy_digest(job) == metadata['vacancy_digest'], 'resume_integrity_error')
         format = metadata['format']
         _require(type(format) is str and format in ('txt', 'docx'), 'invalid_resume_format')
-        document = _read(self.root / 'documents' / (metadata['sha256'] + '.' + format), MAX_DOCUMENT_BYTES)
+        document = _read(self.root / 'documents' / (metadata['sha256'] + '.' + format), MAX_DOCUMENT_BYTES, private=True)
         _require(_digest(document) == metadata['sha256'] and document == render_document(text, format),
                  'resume_integrity_error')
         return metadata
@@ -417,7 +424,7 @@ class ResumeStore:
         _require(destination != self.root and self.root not in destination.parents,
                  'invalid_resume_export_path')
         document = _read(self.root / 'documents' / (metadata['sha256'] + '.' + metadata['format']),
-                         MAX_DOCUMENT_BYTES)
+                         MAX_DOCUMENT_BYTES, private=True)
         # Recheck bytes read for this export, after verify_version's independent read.
         _require(_digest(document) == metadata['sha256'], 'resume_integrity_error')
         _require(self._publish(destination, document), 'resume_export_exists')

@@ -12,7 +12,8 @@ Estas reglas son permanentes; no conceden autorización para ejecutar fases futu
    conservar cambios concurrentes y no reescribir historial compartido.
 3. Completar el alcance autorizado con autonomía. Un PR independiente por fase,
    dirigido a `main`, con validaciones ejecutadas y contexto para la siguiente fase.
-   No fusionar sin aprobación ni iniciar fases dependientes de cambios sin integrar.
+   No fusionar sin aprobación. La misión de Fase 6 autoriza PRs apilados con
+   dependencia/base explícitas; no presentarlos como integrados.
 4. Reutilizar componentes existentes antes de construir; evitar sobreingeniería,
    refactorizaciones ajenas al objetivo y rupturas sin justificación.
 5. Consultar documentación oficial vigente de APIs y bibliotecas antes de integrarlas.
@@ -61,8 +62,8 @@ Estas reglas son permanentes; no conceden autorización para ejecutar fases futu
   Toda fuente futura tendrá máximos configurables de solicitudes por fuente y
   ejecución, timeout, backoff exponencial y pausa tras errores consecutivos
   configurables. Respetar `Retry-After`; no reintentar indefinidamente.
-- Telegram debe permanecer desactivado sin configuración autorizada. Nunca poner
-  tokens en código ni ejemplos, y no solicitarlos en una fase de documentación.
+- Telegram está retirado por decisión definitiva del usuario. No recrear tokens,
+  flags, productores, colas o transportes; preservar solo su historial de solo lectura.
 
 ## Honestidad y evidencia
 
@@ -121,8 +122,8 @@ elegibilidad o requisitos, usar `insufficient_information`.
 Cada resultado explicará requisitos cumplidos y faltantes, información pendiente,
 motivos de compatibilidad/exclusión y recomendaciones honestas para mejorar la
 candidatura. No puntuar información desconocida como verificada. Estos estados
-son el contrato implementado para evaluaciones nuevas `matching_v2`; conservar
-puntajes, etiquetas y JSON históricos `legacy_v1` sin reinterpretación automática.
+son el contrato implementado para evaluaciones nuevas `matching_v7`; conservar
+puntajes, etiquetas y JSON históricos `matching_v6`/`matching_v5`/`matching_v4`/`matching_v3`/`matching_v2`/`legacy_v1` sin reinterpretación automática.
 
 ## Arquitectura y operación
 
@@ -130,9 +131,8 @@ puntajes, etiquetas y JSON históricos `legacy_v1` sin reinterpretación automá
   recuperación y búsqueda; nunca borrar/reemplazar el lockfile ni omitir cooldowns
   durables. Mantener transacción por observación, presupuesto y worker terminable.
   No ejecutar discover manual en paralelo para evitar cuotas de automatización.
-- Telegram solo drena con `--notify` más enabled/token/chat explícitos. Preservar
-  outbox única; timeout/crash/5xx ambiguos no se reenvían automáticamente. No llevar
-  contenido privado a avisos/logs. Restaurar marca pendientes/en curso como ambiguos.
+- Restaurar exige revisar fuentes antes de habilitarlas; no omitir cooldowns
+  conocidos ni desbloquear suspensiones indefinidas por conveniencia.
 - Claude preparado usa workflow manual main, environment con revisión humana y
   activación explícita. Nunca PR checkout con secretos, herramientas del modelo o
   datos privados en diff; no afirmar auditoría real a partir de tests sintéticos.
@@ -175,3 +175,19 @@ En Windows usar el intérprete equivalente de `.venv\Scripts\python.exe`.
 cuando esté disponible. Desde Fase 2, `tests/test_exporters.py` usa TestCase y
 sus pruebas CSV también se ejecutan con el comando unittest de CI. Conservar la matriz Windows/Linux de CI y sus smoke
 tests. Registrar fallos y limitaciones sin ocultarlos ni ampliar la fase.
+
+## Preparación operativa de Fase 6
+
+- PR B apilado depende de hardening A: no confundir rama publicada con integración.
+- Producción fija SHA/wheel autenticados y no usa el actualizador de escritorio.
+  No ejecutar install/activate ni timers contra PizzaLab sin acceso/autorización.
+- Mantener RunLock compartido también en lectores que inicializan/migran. GUI
+  oficial lo conserva durante la ventana; cerrarla antes de mantenimiento.
+  APIs embebidas/escritores externos deben coordinarse explícitamente.
+- storage backup/restore son conjuntos privados verificados. Restore siempre nuevo,
+  revoca aprobaciones y exige revisar límites de fuentes, sin borrar restricciones.
+- Retención es inventario/dry-run, nunca borrar CV/evidencias/candidaturas/historia.
+- Reporte diario local 14:00 America/Mexico_City, una fecha inmutable, catchup acotado.
+  No presentar estado actual como histórico ni simulaciones/applied manual como envío.
+- Work continúa sin transporte/acceso privado verificado. No inventar APIs, activar
+  tareas/Drive/correo o afirmar delivered/read sin comprobante real.

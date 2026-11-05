@@ -20,6 +20,7 @@ from .matching import evaluate_match
 from .migrations import legacy_identity
 from .sources.models import NormalizedJob
 from .workflow_contracts import WorkflowError, require_dry_run
+from .private_storage import read_private
 
 
 def add_workflow_parsers(sub, vacancy_sub) -> None:
@@ -75,7 +76,9 @@ def add_workflow_parsers(sub, vacancy_sub) -> None:
     manual.add_argument('file', type=Path)
 
 
-def _read_text(path: Path, limit: int) -> str:
+def _read_text(path: Path, limit: int, *, private=False) -> str:
+    if private:
+        return read_private(path, limit).decode('utf-8')
     if path.is_symlink() or not stat.S_ISREG(path.stat().st_mode):
         raise WorkflowError('nonregular_input')
     flags = os.O_RDONLY | getattr(os, 'O_BINARY', 0) | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0)
@@ -98,11 +101,11 @@ def _unique_object(pairs):
     return result
 
 
-def _read_object(path: Path, limit: int) -> dict:
+def _read_object(path: Path, limit: int, *, private=False) -> dict:
     def invalid_number(_value):
         raise WorkflowError('invalid_json')
 
-    payload = json.loads(_read_text(path, limit), object_pairs_hook=_unique_object,
+    payload = json.loads(_read_text(path, limit, private=private), object_pairs_hook=_unique_object,
                          parse_constant=invalid_number)
     if not isinstance(payload, dict):
         raise WorkflowError('invalid_json')

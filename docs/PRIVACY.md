@@ -47,13 +47,26 @@ y contadores. SQLite conserva también snapshots privados anteriores: el resumen
 redactado no convierte el backup en información pública. El home de automatización
 se exige fuera del checkout. No se altera el contenido de CV/candidaturas.
 
-Telegram permanece desactivado; solo con configuración y `--notify` autorizados
-salen etiquetas estáticas y IDs/cantidades. No títulos, empresas, URLs, perfiles o
-CV. Chat/token nunca se imprimen, pero Telegram conocerá el destinatario, horarios
-y esos avisos. Pendientes/ambiguos permanecen en SQLite; revisar antes de activar.
+Telegram fue retirado. No se leen credenciales ni se crean/drenan eventos; sus
+filas históricas permanecen de solo lectura. No hay destinatario ni entrega externa.
+Los archivos gestionados se protegen 0700/0600 en POSIX incluso con umask permisiva;
+los imports externos conservan sus permisos. En Windows verificar ACL independientes.
 
 Claude no fue invocado. Una activación futura enviará el diff seleccionado al
 proveedor y puede imprimirlo en logs de Actions: revisar previamente secretos/datos
 personales, protección del environment, retención y coste. Nunca incluir documentos
 privados para facilitar la revisión. Ver [operación](AUTOMATION_MONITORING.md) y
 [revisión preparada](CLAUDE_REVIEW.md).
+
+## Reportes y conjuntos privados de Fase 6
+
+Reportes locales incluyen empresas/vacantes/enlaces, metadata de CV y seguimiento;
+no se publican. `reports show` solicita detalle privado; `--summary` limita salida
+a agregados, que aún revelan fechas/actividad. Generated/stored no equivalen a
+entrega/lectura: no hay transporte Work/Drive/email configurado ni API inventada.
+No se crearon tareas ni se consultaron cuentas personales durante investigación.
+
+Bundles contienen SQLite con snapshots completos, CV, evidencia, configuración y
+reportes. Mantenerlos fuera de Git, verificar ACL/cifrado/custodia si salen del host.
+Manifest SHA no anonimiza ni certifica autoría. Inventory solo simula retención;
+no borra historia o documentos. Journal solo recibe JSON redactado, sin CV/contacto.

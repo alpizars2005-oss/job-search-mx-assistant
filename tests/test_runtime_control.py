@@ -274,3 +274,69 @@ class RunControlTests(unittest.TestCase):
                 stat = Path('/proc') / str(worker_pid) / 'stat'
                 if stat.exists():
                     self.assertEqual(stat.read_text(encoding='ascii').split()[2], 'Z')
+
+    def test_unstoppable_worker_reports_cleanup_failure_without_closing_live_process(self):
+        from types import SimpleNamespace
+        runtime = self.runtime()
+        class Connection:
+            def poll(self, timeout=0):
+                return True
+            def recv(self):
+                return ('response', HttpResponse(429, {'Retry-After': '3600'}, b''))
+            def close(self):
+                pass
+        class UnstoppableProcess:
+            pid = 12345
+            closed = False
+            def __init__(self):
+                self.joins = []
+                self.terminated = self.killed = False
+            def start(self):
+                pass
+            def is_alive(self):
+                return True
+            def terminate(self):
+                self.terminated = True
+            def kill(self):
+                self.killed = True
+            def join(self, timeout=None):
+                self.joins.append(timeout)
+            def close(self):
+                self.closed = True
+                raise ValueError('Cannot close a process while it is still running')
+        process = UnstoppableProcess()
+        context = SimpleNamespace(Pipe=lambda **kwargs: (Connection(), Connection()),
+                                  Process=lambda **kwargs: process)
+        with patch.object(runtime.multiprocessing, 'get_context', return_value=context):
+            with self.assertRaises(SourceError) as caught:
+                runtime.BoundedTransport(runtime.RunControl(5))('synthetic', 2, 100)
+        self.assertEqual(caught.exception.code, 'worker_cleanup_failed')
+        self.assertEqual(caught.exception.worker_pid, 12345)
+        self.assertEqual(caught.exception.response.status, 429)
+        self.assertTrue(process.terminated)
+        self.assertTrue(process.killed)
+        self.assertEqual(process.joins, [0.2, 0.2])
+        self.assertFalse(process.closed)
+
+    def test_worker_death_is_local_infrastructure_failure(self):
+        from types import SimpleNamespace
+        runtime = self.runtime()
+        class Connection:
+            def poll(self, timeout=0):
+                return False
+            def close(self):
+                pass
+        class DeadProcess:
+            pid = 12345
+            def start(self):
+                pass
+            def is_alive(self):
+                return False
+            def join(self, timeout=None):
+                pass
+            def close(self):
+                pass
+        context = SimpleNamespace(Pipe=lambda **kwargs: (Connection(), Connection()),
+                                  Process=lambda **kwargs: DeadProcess())
+        with patch.object(runtime.multiprocessing, 'get_context', return_value=context):
+            self.assert_code('worker_failed', lambda: runtime.BoundedTransport(runtime.RunControl(5))('synthetic', 2, 100))

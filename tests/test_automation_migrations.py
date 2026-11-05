@@ -27,7 +27,7 @@ class AutomationMigrationTests(unittest.TestCase):
             make_three(path)
             before = contents(path)
             ApplicationDatabase(path)
-            self.assertEqual(version(path), '4')
+            self.assertEqual(version(path), '5')
             self.assertEqual(contents(path), before)
             backup = list(Path(tmp).glob('*.schema3-*.bak'))
             self.assertEqual(len(backup), 1)
@@ -85,7 +85,7 @@ migrations.initialize_database(Path(sys.argv[1]))
             self.assertEqual(version(path), '3')
             self.assertEqual(contents(path), original)
             ApplicationDatabase(path)
-            self.assertEqual(version(path), '4')
+            self.assertEqual(version(path), '5')
             self.assertEqual(contents(path), original)
 
 

@@ -43,6 +43,130 @@ _CONDITIONS = {
     'driver_license': r"\b(?:driver'?s? licen[cs]e|driving licen[cs]e|licencia de conducir)\b",
     'certification': r'\b(?:certification|certified|certificacion|certificado)\b',
 }
+_OTHER_COUNTRY = (r'(?:united states(?: of america)?|estados unidos|u\.?s\.?a?\.?|ee\.?\s?uu\.?|'
+                  r'canada|uk|united kingdom|reino unido|europe|europa|germany|alemania|spain|espana)')
+_GEOGRAPHIC_PEOPLE = r'(?:residents?|citizens?|applicants?|candidates?)'
+_GEOGRAPHIC_RESTRICTION = re.compile(
+    rf'\b{_OTHER_COUNTRY}(?:[- ]based)?\s+{_GEOGRAPHIC_PEOPLE}\s+only\b|'
+    rf'\b(?:only|restricted to|limited to|exclusively)\s+(?:{_GEOGRAPHIC_PEOPLE}\s+(?:of|in)\s+)(?:the\s+)?{_OTHER_COUNTRY}\b|'
+    rf'\b(?:(?:open|available)\s+only|only\s+(?:open|available))\s+to\s+(?:{_GEOGRAPHIC_PEOPLE}\s+(?:of|in)\s+(?:the\s+)?{_OTHER_COUNTRY}|'
+    rf'{_OTHER_COUNTRY}\s+{_GEOGRAPHIC_PEOPLE})\b|'
+    rf'\bonly\s+{_OTHER_COUNTRY}\s+{_GEOGRAPHIC_PEOPLE}\s+(?:may|can)\s+apply\b|'
+    rf'\bonly\s+(?:{_OTHER_COUNTRY}[- ]based\s+{_GEOGRAPHIC_PEOPLE}|'
+    rf'{_GEOGRAPHIC_PEOPLE}\s+(?:(?:who|that)\s+(?:are\s+)?)?(?:located|based|residing|living)\s+in\s+(?:the\s+)?{_OTHER_COUNTRY})\b|'
+    rf'\b(?:must|have to)\s+(?:reside|live|be based|be located)\s+in\s+(?:the\s+)?{_OTHER_COUNTRY}\b|'
+    rf'\b(?:must|have to)\s+be\s+(?:a\s+)?{_OTHER_COUNTRY}\s+(?:residents?|citizens?)\b|'
+    rf'\b(?:this|the|current)\s+(?:[\w-]+\s+){{0,4}}(?:role|position|vacancy)\s+(?:is\s+)?{_OTHER_COUNTRY}[- ]based\b|'
+    rf'\bsolo\s+(?:contratamos\s+)?(?:candidatos?\s+)?(?:residentes?|ciudadanos?)\s+(?:de|en)\s+{_OTHER_COUNTRY}\b|'
+    rf'\b(?:residencia|contratacion)\s+exclusiva\s+(?:en|para\s+(?:residentes?|ciudadanos?)\s+(?:de|en))\s+{_OTHER_COUNTRY}\b|'
+    rf'(?P<country_only>\b{_OTHER_COUNTRY}\s+only\b)')
+_GEOGRAPHIC_WAIVER = re.compile(
+    rf'\b{_OTHER_COUNTRY}\s+(?:residence|residency|citizenship)\s+(?:is\s+)?not\s+(?:required|needed)\b')
+_LOCATION_COUNTRIES = (rf'(?:the\s+)?{_OTHER_COUNTRY}(?:[- ]based)?'
+                       rf'(?:\s*(?:&|and|,|/)\s*(?:the\s+)?{_OTHER_COUNTRY}(?:[- ]based)?)*')
+_REMOTE_LABEL = r'(?:remote|remot[oa])'
+_WORKSITE_ALTERNATIVE = r"(?:[a-z][a-z .'-]{0,59},\s*[a-z]{2}\s+(?:or|o)\s+)?"
+_REMOTE_COUNTRY_LOCATION = re.compile(
+    rf'(?:{_WORKSITE_ALTERNATIVE}{_REMOTE_LABEL}\s*[-,:(;|—–]\s*{_LOCATION_COUNTRIES}(?:\s+only)?\)?|'
+    rf'{_LOCATION_COUNTRIES}\s*(?:[-,(|—–:]\s*|\s+){_REMOTE_LABEL}\)?|{_OTHER_COUNTRY}\s+only)[.\s]*')
+_COUNTRY_LOCATION = re.compile(rf'{_LOCATION_COUNTRIES}(?:\s+only)?[.\s]*')
+_GEOGRAPHIC_SEPARATOR = re.compile(r'[,;]|\b(?:and|but|however|y|pero|sin embargo)\b')
+
+
+def _current_geographic_scope(text: str, match: re.Match) -> bool:
+    """An explicit reference to another role cannot establish this vacancy's facts.
+
+    Generic employer permission still applies unless it carries a role qualifier.
+    Named role groups are left unverified; only a pointer to the current vacancy
+    resolves that qualifier. Keep this independent of compatibility/title scoring.
+    """
+    role = r'(?:roles?|positions?|vacanc(?:y|ies)|puestos?|vacantes?)'
+    current = r'\b(?:this|current|este|esta|actual)\b'
+
+    def current_reference(value):
+        if re.search(r'\b(?:other|another|otros?|otras?)\b', value):
+            return False
+        return bool(re.search(current, value) or re.search(
+            rf'\b(?:all\s+{role}|tod[oa]s\s+(?:l[oa]s\s+)?{role})\b', value))
+    # A qualifier immediately after the hiring/residence fact binds to that fact,
+    # before a later clause about the current role can change the scope.
+    following = re.match(r'\s+(?:for|para)\s+([^,;]{1,70})', text[match.end():])
+    if following:
+        qualifier = _GEOGRAPHIC_SEPARATOR.split(following.group(1))[0]
+        return bool(current_reference(qualifier) and re.search(rf'\b{role}\b', qualifier))
+    # Explicit "this engineering role" subjects override an earlier role's clause.
+    if re.match(rf'(?:this|current|este|esta)\s+(?:[\w-]+\s+){{0,4}}{role}\b', match.group()):
+        return True
+    before = text[:match.start()]
+    qualifier = re.search(r'\b(?:for|para)\s+([^,;]{1,70}),\s*$', before)
+    if qualifier:
+        return bool(current_reference(qualifier.group(1)) and re.search(rf'\b{role}\b', qualifier.group(1)))
+    references = list(re.finditer(rf'\b{role}\b', before))
+    if references:
+        last = references[-1]
+        # Bind to the most recent role reference, keeping "for sales roles, we"
+        # together while dropping an earlier independent clause.
+        prefix = re.split(r'[,;]|\b(?:but|pero|while|mientras)\b', before[:last.start()])[-1]
+        return current_reference(prefix + before[last.start():last.end()])
+    return True
+
+
+def _geographic_negated(text: str, match: re.Match) -> bool:
+    # "Not only US residents" explicitly rejects exclusivity. The general
+    # negation helper deliberately removes "not only" for positive skill facts.
+    before = text[:match.start()]
+    after = text[match.end():]
+    return bool(re.search(r'\b(?:not only|no solo)\s*$', before) or _negated(text, match)
+                or re.match(r'\s+(?:(?:will|can|may|are|is)\s+)?not\s+(?:be\s+)?'
+                            r'(?:considered|accepted|eligible|permitted|allowed)\b', after))
+
+
+def _vacancy_residence_restriction(text: str, match: re.Match, *, location=False) -> bool | None:
+    """Return confirmed, unrelated, or None for a conditional hiring restriction."""
+    if not _current_geographic_scope(text, match) or _geographic_negated(text, match):
+        return False
+    before = _GEOGRAPHIC_SEPARATOR.split(text[:match.start()])[-1]
+    country_only = match.groupdict().get('country_only')
+    copula = r'(?:is|are|es|esta|will be|may be|might be|could be)'
+    role_predicate = rf'(?:role|position|vacancy|job|puesto|vacante)\s+(?:{copula}\s+)?'
+    # Customer support can name the restricted role itself, rather than its clients.
+    role_bound = country_only and re.search(rf'\b{role_predicate}(?:the\s+)?$', before)
+    if not role_bound and re.search(r'\b(?:office|offices|client|clients|customer|customers|headquarters|oficina|oficinas|clientes?)\b', before):
+        return False
+    remaining = text[match.end():]
+    after = _GEOGRAPHIC_SEPARATOR.split(remaining)[0]
+    if re.match(r'\s+(?:need|must|have)\b', after):
+        return False
+    if re.search(r'\b(?:reimbursement|benefits?|tax forms?|w-9|relocation assistance|reembolso|beneficios?)\b', after):
+        return False
+    if country_only:
+        # A bare country qualifier must govern hiring/location, rather than a
+        # different predicate. EST next to an explicit US-only label does not
+        # erase that restriction; hours/time-zone predicates are distinct.
+        unrelated = r'\b(?:benefits?|reimbursement|expenses?|tax forms?|w-9|time[ -]?zones?|hours?|horarios?|beneficios?|reembolso)\b'
+        if re.search(unrelated, before) or re.match(r'\s+' + unrelated, after):
+            return False
+        # "role" alone is insufficient: benefits, equipment and schedules can
+        # also be country-specific. Require a hiring predicate or label whose
+        # complement is the country, rather than any earlier role mention.
+        if not location and not re.search(
+                rf'\b(?:{role_predicate}|'
+                r'(?:location|eligibility|residence|hiring|ubicacion|residencia|contratacion)\s*:\s*|'
+                rf'(?:hiring|hire|employ|contratacion|contratar|contratamos)\s+(?:{copula}\s+)?'
+                r'(?:(?:in|from|en|desde)\s+)?)(?:the\s+)?$', before):
+            return False
+    # An explicit Mexico alternative/exception means the country list does not
+    # establish an incompatible residence requirement. It grants no permission.
+    # A country label can close its parenthesis before the bound qualifier.
+    qualifier = r'\s*\)?\s*,?\s*'
+    if re.match(qualifier + r'(?:or|except|excepting|including|o|excepto|incluyendo)\b[^.;]{0,50}\bmexico\b', remaining):
+        return False
+    if (country_only and re.search(
+            r'\b(?:if|may|might|could|possibly|potentially|depending|pending|'
+            r'subject to|si|quizas|podria)\b', before)) or re.match(
+            qualifier + r'(?:if|unless|subject to|pending|depending on|si|sujeto a)\b', remaining):
+        return None
+    return True
 
 
 def job_segments(job: JobPosting | NormalizedJob) -> list[dict[str, Any]]:
@@ -129,14 +253,34 @@ def _combined(positive, negative, fallback='unknown'):
 
 
 def _mexico(segments):
-    positive, negative, hints = [], [], []
-    country = r'(?:us|u\.s\.?|united states|estados unidos|ee\.?\s?uu\.?|canada|uk|united kingdom|reino unido|europe|europa|germany|alemania|spain|espana)'
-    us_only = re.compile(
-        rf'\b(?:{country})\s+(?:(?:residents?|citizens?|applicants?|candidates?)\s+)?only\b|'
-        rf'\b(?:only|restricted to|limited to|exclusively)\s+(?:(?:residents?|citizens?)\s+(?:of|in)\s+)?(?:the\s+)?{country}\b|'
-        rf'\b(?:must|have to)\s+(?:reside|live|be based)\s+in\s+(?:the\s+)?{country}\b|'
-        rf'\b(?:must|have to)\s+be\s+(?:a\s+)?{country}\s+(?:residents?|citizens?)\b|'
-        rf'\bsolo\s+(?:contratamos\s+)?(?:residentes?|ciudadanos?)\s+(?:de|en)\s+{country}\b')
+    positive, negative, hints, ambiguous = [], [], [], []
+    # A semicolon can split a location label into evidence spans. Reassemble
+    # each field before classifying its bounded country list, keeping evidence
+    # offsets/provenance on the original individual spans.
+    locations = {}
+    for item in segments:
+        if item['field'] == 'location' or item['field'].startswith('locations['):
+            locations.setdefault(item['field'], []).append(item)
+    mexico_alternative = any(
+        re.search(r'\bmexico\b', _text(item))
+        and not re.search(r'\b(?:not|no|except|excluding|excepto|salvo)\b', _text(item))
+        for facts in locations.values() for item in facts)
+    for facts in locations.values():
+        label = normalize(' '.join(item['span'] for item in facts))
+        explicit = [item for item in facts if re.search(r'\bonly\b', _text(item))
+                    and _REMOTE_COUNTRY_LOCATION.fullmatch(_text(item).rstrip(';'))]
+        if explicit:
+            negative.extend(explicit)
+            continue
+        if (_REMOTE_COUNTRY_LOCATION.fullmatch(label) or _COUNTRY_LOCATION.fullmatch(label)):
+            if not mexico_alternative or re.search(r'\bonly\b', label):
+                negative.extend(facts)
+        elif not mexico_alternative:
+            # One string field may contain several complete location labels.
+            # Keep each recognized restriction when the whole field is a list.
+            negative.extend(item for item in facts
+                if _REMOTE_COUNTRY_LOCATION.fullmatch(_text(item).rstrip(';'))
+                or _COUNTRY_LOCATION.fullmatch(_text(item).rstrip(';')))
     actor = r'we\s+(?:(?:can|are able to|are)\s+)?(?:hire|hiring|employ|engage)'
     people = r'(?:candidates?|applicants?|people|employees?|residents?|engineers?|developers?|workers?)'
     residence = (rf'{people}\s+(?:(?:who|that)\s+(?:are\s+)?)?'
@@ -155,8 +299,8 @@ def _mexico(segments):
         rf'\b{residence}\s+(?:are\s+)?(?:eligible|can apply|may apply)\b')
     deny = re.compile(
         r'\b(?:cannot|can not|can\x27t|do not|don\x27t|unable to|no podemos|no se permite)\s+'
-        r'(?:hire|employ|contratar)\b[^.;]{0,100}\bmexico\b|'
-        r'\bno contratamos\b[^.;]{0,100}\bmexico\b|'
+        rf'(?:hire|employ|contratar)\s+(?:{residence}|(?:a\s+)?{spanish_residence}|(?:in|from|en|desde)\s+mexico)\b|'
+        rf'\bno contratamos\s+(?:a\s+)?(?:{spanish_residence}|(?:en|desde)\s+mexico)\b|'
         r'\bhiring\s+is\s+not\s+(?:permitted|allowed|supported)\s+(?:in|from)\s+mexico\b|'
         rf'\b{people}\s+(?:(?:who|that)\s+(?:are\s+)?)?not\s+(?:based|residing|located|living)\s+in\s+mexico\b|'
         rf'\b(?:this\s+)?(?:role|position|vacancy)\s+(?:is\s+)?not\s+(?:open|available)\s+to\s+{residence}\b|'
@@ -172,23 +316,36 @@ def _mexico(segments):
         text = _text(item)
         if re.search(r'\b(?:mexico|latam|americas|global|worldwide)\b', text):
             hints.append(item)
-        rejected_here = bool(deny.search(text) or (hiring_context.search(text) and exclusion.search(text))
-                             or (permit.search(text) and role_exception.search(text)))
+        denied = [match for match in deny.finditer(text)
+                  if _current_geographic_scope(text, match) and not _negated(text, match)]
+        excluded = [match for match in exclusion.finditer(text)
+                    if hiring_context.search(text) and not _negated(text, match)]
+        rejected_here = bool(denied or excluded or (permit.search(text) and role_exception.search(text)))
         if rejected_here:
             negative.append(item)
-        for match in us_only.finditer(text):
-            if not _negated(text, match):
+        if item['field'] not in locations and _REMOTE_COUNTRY_LOCATION.fullmatch(text):
+            negative.append(item)
+        for match in _GEOGRAPHIC_RESTRICTION.finditer(text):
+            restriction = _vacancy_residence_restriction(text, match, location=item['field'] in locations)
+            if restriction is True:
                 negative.append(item)
-        match = permit.search(text)
-        if (match and not _negated(text, match) and not rejected_here
-                and not re.search(r'\b(?:hope|hoping|hoped)\b', text[:match.start()])
-                and not re.search(r'\b(?:if|subject to|provided|pending|depending|sujeto a|si se)\b', text)
-                and not re.search(r'\b(?:except|excluding|excepto|salvo)\b', text)):
-            positive.append(item)
+            elif restriction is None:
+                ambiguous.append(item)
+        for match in permit.finditer(text):
+            local = _local_text(text, match, _GEOGRAPHIC_SEPARATOR)
+            if (not _negated(text, match)
+                    and _current_geographic_scope(text, match)
+                    and not role_exception.search(text)
+                    and not re.search(r'\b(?:hope|hoping|hoped)\b', text[:match.start()])
+                    and not re.search(r'\b(?:if|subject to|provided|pending|depending|sujeto a|si se)\b', local)
+                    and not re.search(r'\b(?:except|excluding|excepto|salvo)\b', local)):
+                positive.append(item)
     status = _combined(positive, negative)
+    if ambiguous and not negative:
+        status = 'unknown'
     reason = {'met': 'explicit_mexico_hiring_permission', 'unmet': 'explicit_geographic_exclusion',
               'contradictory': 'conflicting_hiring_restrictions', 'unknown': 'mexico_hiring_not_confirmed'}[status]
-    return _requirement('mexico_hiring', status, True, reason, positive + negative or hints)
+    return _requirement('mexico_hiring', status, True, reason, positive + negative + ambiguous or hints)
 
 
 def _remote(profile, segments):
@@ -429,6 +586,10 @@ def _conditions(profile, segments):
             if any(re.search(pattern, part) for pattern in _CONDITIONS.values()):
                 continue
             if re.search(r'\b(?:authorized to work|work authorization|permiso de trabajo|autorizad[oa] para trabajar)\b', part):
+                continue
+            if _GEOGRAPHIC_RESTRICTION.search(part) or _GEOGRAPHIC_WAIVER.search(part):
+                # The geographic rule already owns these predicates, including
+                # waivers. Do not invent a second unsupported obligation.
                 continue
             if (_DEGREE.search(part) or _YEARS.search(part) or _REMOTE.search(part) or _NONREMOTE.search(part)
                     or re.search(r'\b(?:no experience|sin experiencia|no se requiere experiencia)\b', part)):

@@ -6,7 +6,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 
-from .matching import evaluate_match
+from .matching import ALGORITHM_VERSION, evaluate_match
 from .workflow_contracts import WorkflowError, canonical_json, content_digest, require_dry_run, vacancy_digest
 
 
@@ -21,7 +21,7 @@ def safe_reports(reports):
         source = report.get('source')
         status = report.get('status')
         if source not in ('greenhouse', 'lever', 'ashby') or status not in (
-                'disabled', 'ok', 'partial', 'paused', 'error'):
+                'disabled', 'ok', 'partial', 'paused', 'error', 'interrupted', 'not_attempted'):
             raise WorkflowError('invalid_run_report')
         item = {'source': source, 'status': status}
         for key in ('requests', 'rejected', 'duplicates'):
@@ -77,7 +77,7 @@ class AutomationStore:
             previous = connection.execute('SELECT * FROM automation_observations WHERE vacancy_id=?',
                                           (vacancy_id,)).fetchone()
             if previous and (previous['semantic_digest'], previous['profile_digest'],
-                             previous['algorithm_version']) == (semantic, profile_hash, 'matching_v2'):
+                             previous['algorithm_version']) == (semantic, profile_hash, ALGORITHM_VERSION):
                 evaluation_id, change = previous['evaluation_id'], 'unchanged'
                 evaluation = connection.execute('SELECT evaluation_json FROM evaluations WHERE id=?',
                                                 (evaluation_id,)).fetchone()
@@ -102,13 +102,6 @@ class AutomationStore:
                     (vacancy_id, semantic, profile_hash, result.algorithm_version, evaluation_id))
             connection.execute('INSERT INTO automation_items VALUES (?,?,?,?,?)',
                                (run_id, vacancy_id, evaluation_id, change, classification))
-            if change != 'unchanged':
-                from .notifications import queue_event
-                kind = ('priority' if classification == 'high_priority' else
-                        'eligibility_pending' if classification == 'insufficient_information' else None)
-                if kind:
-                    queue_event(connection, f'{kind}:{evaluation_id}', kind, entity_id=vacancy_id,
-                                language=self.language)
             return {'vacancy_id': vacancy_id, 'evaluation_id': evaluation_id,
                     'change': change, 'classification': classification}
 
@@ -119,23 +112,15 @@ class AutomationStore:
 
     def save_http_state(self, payload):
         require_dry_run()
-        if payload.get('version') != 1 or set(payload.get('providers', {})) - {'greenhouse', 'lever', 'ashby'}:
-            raise WorkflowError('invalid_http_state')
+        from .sources.http import SafeHttpClient
+        from .sources.models import SourceError
+        try:
+            SafeHttpClient().import_state(payload)
+        except SourceError:
+            raise WorkflowError('invalid_http_state') from None
         with self.database._connection() as connection:
             connection.execute('BEGIN IMMEDIATE')
             for provider, state in payload['providers'].items():
-                if set(state) != {'failures', 'paused_until', 'not_before'}:
-                    raise WorkflowError('invalid_http_state')
-                if type(state['failures']) is not int or state['failures'] < 0:
-                    raise WorkflowError('invalid_http_state')
-                for key in ('paused_until', 'not_before'):
-                    value = state[key]
-                    if value is not None:
-                        if not isinstance(value, str) or len(value) > 50:
-                            raise WorkflowError('invalid_http_state')
-                        date = datetime.fromisoformat(value)
-                        if date.tzinfo is None:
-                            raise WorkflowError('invalid_http_state')
                 connection.execute('''INSERT INTO automation_http_state VALUES (?,?)
                     ON CONFLICT(provider) DO UPDATE SET state_json=excluded.state_json''',
                     (provider, canonical_json(state)))
@@ -143,14 +128,18 @@ class AutomationStore:
     def load_http_state(self):
         with self.database._connection() as connection:
             rows = connection.execute('SELECT * FROM automation_http_state').fetchall()
-        return {'version': 1, 'providers': {row['provider']: json.loads(row['state_json']) for row in rows}}
+        providers = {row['provider']: json.loads(row['state_json']) for row in rows}
+        version = 2 if any('suspension' in state for state in providers.values()) else 1
+        if version == 2:
+            providers = {provider: dict(state, suspension=state.get('suspension'))
+                         for provider, state in providers.items()}
+        return {'version': version, 'providers': providers}
 
     def finish(self, run_id, status, reports):
         require_dry_run()
         if status not in ('success', 'partial', 'deadline', 'interrupted', 'failed'):
             raise WorkflowError('invalid_run_status')
         reports, now = safe_reports(reports), timestamp()
-        from .notifications import queue_event
         with self.database._connection() as connection:
             connection.execute('BEGIN IMMEDIATE')
             updated = connection.execute('''UPDATE automation_runs SET status=?,finished_at=?,reports_json=?
@@ -160,25 +149,22 @@ class AutomationStore:
             providers = sorted({r['source'] for r in reports if r['status'] != 'disabled'})
             for provider in providers:
                 relevant = [r for r in reports if r['source'] == provider and r['status'] != 'disabled']
-                ok = all(r['status'] == 'ok' for r in relevant)
+                local = {'run_cancelled', 'run_deadline', 'worker_failed', 'worker_cleanup_failed',
+                         'source_paused', 'source_suspended', 'request_limit', 'page_limit'}
+                failed = any(any(code not in local for code in r['issues']) for r in relevant)
+                completed = any(r['status'] in ('ok', 'partial') and r['requests'] > 0 for r in relevant)
+                if not failed and not completed:
+                    continue
+                ok = not failed
                 old = connection.execute('SELECT * FROM automation_source_health WHERE provider=?',
                                          (provider,)).fetchone()
                 failures = 0 if ok else (old['failures'] + 1 if old else 1)
                 episode = None if ok else (old['episode'] if old and old['episode'] else run_id)
-                if ok and old and old['failures']:
-                    queue_event(connection, f'recovered:{provider}:{old["episode"]}', 'recovered', language=self.language)
-                if not ok:
-                    queue_event(connection, f'error:{provider}:{episode}', 'source_error', language=self.language)
                 connection.execute('''INSERT INTO automation_source_health VALUES (?,?,?,?,?,?)
                     ON CONFLICT(provider) DO UPDATE SET failures=excluded.failures,episode=excluded.episode,
                     last_success=excluded.last_success,last_failure=excluded.last_failure,last_status=excluded.last_status''',
                     (provider, failures, episode, now if ok else old['last_success'] if old else None,
                      now if not ok else old['last_failure'] if old else None, 'ok' if ok else 'error'))
-            # Announce existing drafts only; no generation or approval occurs here.
-            for candidate in connection.execute("SELECT id,revision FROM candidacies WHERE workflow_state='draft'"):
-                queue_event(connection, f'review:{candidate[0]}:{candidate[1]}', 'review_pending', entity_id=candidate[0], language=self.language)
-            count = connection.execute('SELECT COUNT(*) FROM automation_items WHERE run_id=?', (run_id,)).fetchone()[0]
-            queue_event(connection, f'summary:{run_id}', 'run_summary', count=count, language=self.language)
         return self.show(run_id)
 
     def show(self, run_id):
@@ -200,33 +186,8 @@ class AutomationStore:
                 'counts': counts, 'sources': json.loads(row['reports_json']),
                 'dry_run': True, 'auto_submit': False, 'submitted': False}
         if row['notifications_json'] is not None:
-            result['notifications'] = json.loads(row['notifications_json'])
+            result['historical_notifications'] = json.loads(row['notifications_json'])
         return result
-
-    def record_notifications(self, run_id, metrics):
-        from .notifications import NOTIFICATION_STATUSES, notification_problem
-
-        require_dry_run()
-        if (not isinstance(metrics, dict) or set(metrics) != {
-                'status', 'attempted', 'sent', 'failed', 'uncertain', 'pending'}
-                or metrics['status'] not in NOTIFICATION_STATUSES
-                or any(type(metrics[key]) is not int or not 0 <= metrics[key] <= 2**63 - 1
-                       for key in ('attempted', 'sent', 'failed', 'uncertain', 'pending'))):
-            raise WorkflowError('invalid_notification_metrics')
-        payload = canonical_json(metrics)
-        with self.database._connection() as connection:
-            connection.execute('BEGIN IMMEDIATE')
-            cursor = connection.execute('''UPDATE automation_runs SET notifications_json=?
-                WHERE id=? AND status!='running' ''', (payload, run_id))
-            if not cursor.rowcount:
-                raise WorkflowError('run_not_finished')
-            # A search without delivery, disabled configuration or rate-limited
-            # zero attempts must not erase a previously observed delivery fault.
-            if metrics['attempted'] > 0 or notification_problem(metrics):
-                connection.execute('''INSERT INTO automation_notification_health VALUES (1,?,?,?)
-                    ON CONFLICT(id) DO UPDATE SET run_id=excluded.run_id,
-                    metrics_json=excluded.metrics_json,updated_at=excluded.updated_at''',
-                    (run_id, payload, timestamp()))
 
     def history(self, limit=20):
         if type(limit) is not int or not 1 <= limit <= 100:

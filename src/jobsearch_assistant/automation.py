@@ -7,7 +7,7 @@ from .automation_store import AutomationStore, safe_reports
 from .sources.discovery import DiscoveryEngine
 from .sources.http import SafeHttpClient
 from .sources.models import SourceError
-from .workflow_contracts import content_digest, require_dry_run
+from .workflow_contracts import WorkflowError, content_digest, require_dry_run
 
 
 class AutomationRunner:
@@ -23,6 +23,11 @@ class AutomationRunner:
 
     def run(self):
         require_dry_run()
+        if any(config.enabled for config in self.configs):
+            with self.database._connection() as connection:
+                quarantine = connection.execute("SELECT value FROM meta WHERE key='source_review_required'").fetchone()
+                if quarantine and quarantine[0] != '0':
+                    raise WorkflowError('source_review_required')
         config_hash = content_digest({'sources': [asdict(c) for c in self.configs],
                                       'limits': asdict(self.policy)})
         run_id = self.store.start(config_hash, content_digest(self.profile.to_dict()))
@@ -40,7 +45,6 @@ class AutomationRunner:
             self.log({'event': 'source_finished', 'run_id': run_id, **safe})
 
         try:
-            self.control.check()
             self.client.import_state(self.store.load_http_state())
             self.client.state_callback = self.store.save_http_state
             DiscoveryEngine(self.client).run(self.configs, on_job=observed, on_report=reported)

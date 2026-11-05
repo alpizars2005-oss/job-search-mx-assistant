@@ -257,6 +257,54 @@ class PreparationTests(unittest.TestCase):
             self.assertEqual(output.getvalue(), '')
             self.assertEqual(errors.getvalue().strip(), 'review_disabled_or_untrusted_context')
 
+    def test_debug_sources_fail_before_diff_access_or_private_output(self):
+        # A missed runner/variable/rerun signal would publish the diff below.
+        signals = ('ACTIONS_STEP_DEBUG', 'ACTIONS_RUNNER_DEBUG', 'RUNNER_DEBUG',
+                   'REVIEW_DEBUG_VAR_STEP', 'REVIEW_DEBUG_SECRET_STEP',
+                   'REVIEW_DEBUG_VAR_RUNNER', 'REVIEW_DEBUG_SECRET_RUNNER',
+                   'REVIEW_RUNNER_DEBUG_CONTEXT')
+        environ = {'CLAUDE_REVIEW_ENABLED': 'true', 'GITHUB_EVENT_NAME': 'workflow_dispatch',
+                   'GITHUB_REF': 'refs/heads/main', 'GITHUB_REPOSITORY': REPOSITORY,
+                   'GITHUB_SHA': BASE, 'GITHUB_ACTOR': 'reviewer',
+                   'GITHUB_API_URL': 'https://api.github.com',
+                   'GITHUB_SERVER_URL': 'https://github.com',
+                   'GH_TOKEN': 'synthetic-token', 'REVIEW_PR_NUMBER': '12',
+                   'REVIEW_HEAD_SHA': HEAD,
+                   # A false secret must not hide a true variable signal.
+                   'REVIEW_DEBUG_SECRET_STEP': 'false',
+                   'REVIEW_DEBUG_SECRET_RUNNER': 'false'}
+        for signal in signals:
+            for value in ('true', 'TRUE', '1', ' true '):
+                with self.subTest(signal=signal, value=value), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    api = FakeAPI()
+                    api.diff = DIFF + b'+private-diff-marker\n'
+                    output, errors = io.StringIO(), io.StringIO()
+                    with patch.dict('os.environ', dict(environ, **{
+                            signal: value, 'GITHUB_OUTPUT': str(root / 'outputs')}), clear=True), patch(
+                            'sys.stdout', output), patch('sys.stderr', errors), patch(
+                            'scripts.prepare_claude_review.GitHubReader', return_value=api):
+                        status = main(['--output-dir', str(root / 'bundle')])
+                    self.assertEqual(status, 2)
+                    self.assertEqual(errors.getvalue().strip(), 'review_debug_logging_forbidden')
+                    self.assertEqual(output.getvalue(), '')
+                    self.assertEqual(api.calls, [])
+                    self.assertEqual(list(root.iterdir()), [])
+
+    def test_disabled_debug_signals_preserve_authorized_selection(self):
+        environ = {'CLAUDE_REVIEW_ENABLED': 'true', 'GITHUB_EVENT_NAME': 'workflow_dispatch',
+                   'GITHUB_REF': 'refs/heads/main', 'GITHUB_REPOSITORY': REPOSITORY,
+                   'GITHUB_SHA': BASE, 'GITHUB_ACTOR': 'reviewer',
+                   'GITHUB_API_URL': 'https://api.github.com',
+                   'GITHUB_SERVER_URL': 'https://github.com',
+                   'GH_TOKEN': 'synthetic-token', 'REVIEW_PR_NUMBER': '12',
+                   'REVIEW_HEAD_SHA': HEAD, 'ACTIONS_STEP_DEBUG': 'false',
+                   'ACTIONS_RUNNER_DEBUG': 'false', 'RUNNER_DEBUG': '',
+                   'REVIEW_DEBUG_VAR_STEP': 'false', 'REVIEW_DEBUG_SECRET_STEP': '',
+                   'REVIEW_DEBUG_VAR_RUNNER': '', 'REVIEW_DEBUG_SECRET_RUNNER': 'false',
+                   'REVIEW_RUNNER_DEBUG_CONTEXT': ''}
+        self.assertEqual(runtime_selection(environ)['head_sha'], HEAD)
+
     def test_cli_publishes_only_bounded_json_and_workflow_output_remains_data(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

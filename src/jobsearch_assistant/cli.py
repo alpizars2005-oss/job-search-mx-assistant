@@ -100,6 +100,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("doctor", help="Check the local installation")
     sub.add_parser("gui", help="Open the desktop interface")
+    from .daily_report_cli import add_report_parsers
+    from .storage_cli import add_storage_parsers
+
+    add_report_parsers(sub)
+    add_storage_parsers(sub)
     return parser
 
 
@@ -203,11 +208,8 @@ def command_profile(args: argparse.Namespace) -> int:
         print(profile_path())
         return 0
     output = args.file
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(
-        json.dumps(load_profile().to_dict(), ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    from .private_storage import write_private
+    write_private(output, json.dumps(load_profile().to_dict(), ensure_ascii=False, indent=2).encode('utf-8'))
     print(output.resolve())
     return 0
 
@@ -311,8 +313,13 @@ def command_database(args: argparse.Namespace) -> int:
     return 0
 
 
-def main(argv: list[str] | None = None) -> None:
-    args = build_parser().parse_args(argv)
+def _dispatch(args) -> None:
+    if args.command == 'reports':
+        from .daily_report_cli import dispatch_reports
+        raise SystemExit(dispatch_reports(args))
+    if args.command == 'storage':
+        from .storage_cli import dispatch_storage
+        raise SystemExit(dispatch_storage(args))
     if args.command == "automation":
         from .automation_cli import dispatch_automation
 
@@ -340,6 +347,10 @@ def main(argv: list[str] | None = None) -> None:
                   "Falló el respaldo/restauración; usa un origen válido y un destino nuevo.", file=sys.stderr)
             code = 2
         raise SystemExit(code)
+    if args.command == 'gui':
+        from .gui import main as gui_main
+        gui_main()
+        raise SystemExit(0)
     ensure_workspace()
     if args.command == "init":
         code = command_init(args)
@@ -365,11 +376,34 @@ def main(argv: list[str] | None = None) -> None:
         code = 0
     elif args.command == "doctor":
         code = command_doctor()
-    elif args.command == "gui":
-        from .gui import main as gui_main
-
-        gui_main()
-        code = 0
     else:
         code = 2
     raise SystemExit(code)
+
+
+def _initializes_workspace(args):
+    # Nominal readers call ensure_workspace and may migrate SQLite as well.
+    # Specialized operational commands own their lock/read-only boundaries.
+    if args.command in {'automation', 'reports', 'storage', 'database', 'gui'}:
+        return False
+    if args.command == 'discover':
+        return args.save
+    return True
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = build_parser().parse_args(argv)
+    if _initializes_workspace(args):
+        from .private_storage import private_directory
+        from .runtime_control import RunLock
+        from .workflow_contracts import WorkflowError, require_dry_run
+        try:
+            require_dry_run()
+            home = private_directory(data_home())
+            with RunLock(home / 'automation.lock'):
+                _dispatch(args)
+        except WorkflowError as error:
+            print(json.dumps({'event': 'workspace_error', 'code': error.code}), file=sys.stderr)
+            raise SystemExit(2)  # Preserve the established manual workflow error contract.
+    else:
+        _dispatch(args)

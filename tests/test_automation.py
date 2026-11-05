@@ -146,5 +146,75 @@ class AutomationTests(unittest.TestCase):
         self.assertEqual(result['counts']['new'], 1)
 
 
+    def test_cancelled_before_discovery_records_unattempted_sources(self):
+        from jobsearch_assistant.runtime_control import RunControl
+        configs = [SourceConfig('greenhouse', 'synthetic', 'Synthetic', True),
+                   SourceConfig('lever', 'disabled', 'Disabled', False),
+                   SourceConfig('lever', 'synthetic', 'Synthetic', True)]
+        result = self.runner(configs, lambda *args: self.fail('network after cancellation'),
+                             control=RunControl(30, cancelled=lambda: True)).run()
+        self.assertEqual(result['status'], 'interrupted')
+        self.assertEqual([item['status'] for item in result['sources']],
+                         ['not_attempted', 'disabled', 'not_attempted'])
+        with self.database._connection() as connection:
+            self.assertEqual(connection.execute('SELECT COUNT(*) FROM automation_source_health').fetchone()[0], 0)
+
+    def test_cancellation_after_200_does_not_damage_provider_health(self):
+        from jobsearch_assistant.runtime_control import RunControl
+        cancelled, calls = [False], []
+        def transport(url, *args):
+            calls.append(url)
+            cancelled[0] = True
+            return response(body())
+        configs = [SourceConfig('greenhouse', 'synthetic', 'Synthetic', True),
+                   SourceConfig('lever', 'synthetic', 'Synthetic', True)]
+        result = self.runner(configs, transport, control=RunControl(30, cancelled=lambda: cancelled[0])).run()
+        self.assertEqual(result['status'], 'interrupted')
+        self.assertEqual([item['status'] for item in result['sources']], ['interrupted', 'not_attempted'])
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(result['counts']['total'], 0)
+        with self.database._connection() as connection:
+            rows = connection.execute('SELECT provider,failures FROM automation_source_health').fetchall()
+            self.assertTrue(all(row['provider'] == 'greenhouse' and row['failures'] == 0 for row in rows))
+        state = self.runner_type(self.database, self.profile, [], self.policy,
+                                 control=RunControl(30)).store.load_http_state()
+        self.assertEqual(state['providers']['greenhouse']['failures'], 0)
+        self.assertIsNone(state['providers']['greenhouse']['paused_until'])
+        self.assertNotIn('lever', state['providers'])
+
+    def test_five_deadlines_after_200_never_pause_a_provider(self):
+        from jobsearch_assistant.runtime_control import RunControl
+        ticks = [0]
+        configs = [SourceConfig('greenhouse', 'synthetic', 'Synthetic', True)]
+        def transport(*args):
+            ticks[0] += 2
+            return response(body())
+        for _ in range(5):
+            result = self.runner(configs, transport, control=RunControl(1, monotonic=lambda: ticks[0])).run()
+            self.assertEqual(result['status'], 'deadline')
+            self.assertEqual(result['sources'][0]['status'], 'interrupted')
+            with self.database._connection() as connection:
+                rows = connection.execute('SELECT failures FROM automation_source_health').fetchall()
+                self.assertTrue(all(row['failures'] == 0 for row in rows))
+            state = self.runner_type(self.database, self.profile, [], self.policy,
+                                     control=RunControl(30)).store.load_http_state()['providers']['greenhouse']
+            self.assertEqual(state['failures'], 0)
+            self.assertIsNone(state['paused_until'])
+
+    def test_http_failure_before_cancellation_still_updates_provider_health(self):
+        from jobsearch_assistant.runtime_control import RunControl
+        cancelled = [False]
+        def transport(*args):
+            cancelled[0] = True
+            return HttpResponse(503, {'Retry-After': '3600'}, b'')
+        configs = [SourceConfig('greenhouse', 'synthetic', 'Synthetic', True),
+                   SourceConfig('lever', 'synthetic', 'Synthetic', True)]
+        result = self.runner(configs, transport, control=RunControl(30, cancelled=lambda: cancelled[0])).run()
+        self.assertEqual(result['sources'][0]['issues'], ['http_503', 'run_cancelled'])
+        with self.database._connection() as connection:
+            rows = connection.execute('SELECT provider,failures FROM automation_source_health').fetchall()
+            self.assertEqual([(row['provider'], row['failures']) for row in rows], [('greenhouse', 1)])
+
+
 if __name__ == '__main__':
     unittest.main()
