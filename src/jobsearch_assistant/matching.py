@@ -6,7 +6,7 @@ from .evaluator import COMMON_TECH_SKILLS, JUNIOR_TERMS, contains_phrase, matchi
 from .models import CandidateProfile, EvaluationResult, JobPosting
 from .sources.models import NormalizedJob
 
-ALGORITHM_VERSION = 'matching_v5'
+ALGORITHM_VERSION = 'matching_v6'
 
 
 def evaluate_match(profile: CandidateProfile, job: JobPosting | NormalizedJob) -> EvaluationResult:

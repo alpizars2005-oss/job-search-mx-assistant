@@ -34,7 +34,7 @@ restricciones únicas y transacciones. La API local no representa autorización 
 envío. Los snapshots y backups contienen perfiles privados completos: mantenerlos
 fuera del repositorio y aplicar permisos/ACL del sistema; no son cifrados.
 
-`matching_v5` procesa texto como datos y utiliza reglas deterministas acotadas.
+`matching_v6` procesa texto como datos y utiliza reglas deterministas acotadas.
 Ningún campo ATS ni puntaje confirma elegibilidad legal por sí solo; las afirmaciones
 del empleador son evidencia observada, no verificación jurídica independiente.
 La falta de información esencial conserva `insufficient_information`. La versión

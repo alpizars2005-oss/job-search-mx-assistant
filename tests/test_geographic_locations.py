@@ -66,7 +66,8 @@ class GeographicLocationTests(unittest.TestCase):
     def test_r01b_bare_country_only_is_a_vacancy_hiring_condition(self):
         for clause in ('This role is US only.', 'This position is US only.',
                        'Location: US only.', 'Eligibility: United States only.',
-                       'Hiring in the US only.', 'This role is US only - EST hours.'):
+                       'Hiring in the US only.', 'This role is US only - EST hours.',
+                       'This customer support role is US only.'):
             for kind in (JobPosting, NormalizedJob):
                 for permission in (True, False):
                     with self.subTest(clause=clause, kind=kind.__name__, permission=permission):
@@ -167,6 +168,44 @@ class GeographicLocationTests(unittest.TestCase):
                         self.assertTrue(any(fact['field'] == 'description' and clause in fact['span']
                                             for fact in requirement['evidence']))
 
+    def test_comma_separated_mexico_exceptions_preserve_the_alternative(self):
+        for clause in ('This role is US only, except applicants from Mexico.',
+                       'This role is US only, or open to candidates in Mexico.',
+                       'Only open to candidates in the United States, or Mexico.'):
+            for kind in (JobPosting, NormalizedJob):
+                for permission in (True, False):
+                    with self.subTest(clause=clause, kind=kind.__name__, permission=permission):
+                        job = self.audited_job(kind, clause=clause, permission=permission)
+                        self.assertEqual(self.requirement(job)['status'], 'met' if permission else 'unknown')
+                        self.assertEqual(evaluate_match(self.profile, job).recommendation,
+                                         'high_priority' if permission else 'insufficient_information')
+
+    def test_postposed_conditions_do_not_become_confirmed_country_restrictions(self):
+        for clause in ('This role is US only if tax approval is denied.',
+                       'This role is US only, subject to eligibility clarification.',
+                       'Only open to candidates in the United States if a contract changes.'):
+            for kind in (JobPosting, NormalizedJob):
+                for permission in (True, False):
+                    with self.subTest(clause=clause, kind=kind.__name__, permission=permission):
+                        job = self.audited_job(kind, clause=clause, permission=permission)
+                        self.assertEqual(self.requirement(job)['status'], 'unknown')
+                        self.assertEqual(evaluate_match(self.profile, job).recommendation,
+                                         'insufficient_information')
+                        self.assertTrue(any(clause in fact['span'] for fact in self.requirement(job)['evidence']))
+
+    def test_role_word_alone_cannot_turn_a_different_predicate_into_residence(self):
+        for clause in ('This role offers health insurance in the US only.',
+                       'This role has US only working hours.',
+                       'This role processes US only data.',
+                       'This position uses US only equipment.'):
+            for kind in (JobPosting, NormalizedJob):
+                for permission in (True, False):
+                    with self.subTest(clause=clause, kind=kind.__name__, permission=permission):
+                        job = self.audited_job(kind, clause=clause, permission=permission)
+                        self.assertEqual(self.requirement(job)['status'], 'met' if permission else 'unknown')
+                        self.assertEqual(evaluate_match(self.profile, job).recommendation,
+                                         'high_priority' if permission else 'insufficient_information')
+
     def test_exclusive_us_labels_never_unlock_priority_and_retain_evidence(self):
         for label in ('Remote (US only)', 'Remote - US only',
                       'Remote (United States only)', 'Remote (USA only)',
@@ -264,7 +303,7 @@ class GeographicLocationTests(unittest.TestCase):
             self.assertNotEqual(current['evaluation_id'], previous)
             saved = {item['id']: item for item in database.list_evaluations(vacancy)}
             self.assertEqual(saved[previous], history)
-            self.assertEqual(saved[current['evaluation_id']]['algorithm_version'], 'matching_v5')
+            self.assertEqual(saved[current['evaluation_id']]['algorithm_version'], 'matching_v6')
             self.assertEqual(current['classification'], 'insufficient_information')
 
     def test_v4_cache_is_reevaluated_once_and_all_older_snapshot_bytes_survive(self):
@@ -302,14 +341,41 @@ class GeographicLocationTests(unittest.TestCase):
             with database._connection() as connection:
                 kept = [tuple(row) for row in connection.execute('''SELECT id,algorithm_version,
                     job_snapshot_json,profile_snapshot_json,evaluation_json FROM evaluations
-                    WHERE algorithm_version != 'matching_v5' ORDER BY id''')]
+                    WHERE algorithm_version != 'matching_v6' ORDER BY id''')]
             self.assertEqual(kept, history)
             evaluations = database.list_evaluations(vacancy)
             self.assertEqual(len(evaluations), 5)
             self.assertEqual(len(database.list_vacancies()), 1)
             new = next(item for item in evaluations if item['id'] == current['evaluation_id'])
-            self.assertEqual(new['algorithm_version'], 'matching_v5')
+            self.assertEqual(new['algorithm_version'], 'matching_v6')
             self.assertEqual(new['evaluation']['recommendation'], 'insufficient_information')
+
+    def test_published_v5_candidate_cache_cannot_reuse_a_false_exclusion(self):
+        from jobsearch_assistant.automation_store import AutomationStore
+        from jobsearch_assistant.database import ApplicationDatabase
+        from jobsearch_assistant.models import EvaluationResult
+        from jobsearch_assistant.workflow_contracts import content_digest, vacancy_digest
+        with tempfile.TemporaryDirectory() as directory:
+            database = ApplicationDatabase(Path(directory) / 'database.sqlite3')
+            job = self.audited_job(NormalizedJob,
+                clause='This role offers health insurance in the US only.')
+            vacancy = database.upsert_vacancy(job)
+            previous = database.save_evaluation(vacancy, self.profile,
+                EvaluationResult(87, 'insufficient_information', algorithm_version='matching_v5'), job=job)
+            history = database.list_evaluations(vacancy)[0]
+            with database._connection() as connection:
+                connection.execute('INSERT INTO automation_observations VALUES (?,?,?,?,?)',
+                    (vacancy, vacancy_digest(job), content_digest(self.profile.to_dict()),
+                     'matching_v5', previous))
+            store = AutomationStore(database)
+            run = store.start('synthetic', 'synthetic')
+            current = store.observe(run, job, self.profile)
+            store.finish(run, 'success', [])
+            self.assertEqual(current['change'], 'reevaluated')
+            self.assertNotEqual(current['evaluation_id'], previous)
+            self.assertEqual(current['classification'], 'high_priority')
+            kept = next(item for item in database.list_evaluations(vacancy) if item['id'] == previous)
+            self.assertEqual(kept, history)
 
 
 if __name__ == '__main__':

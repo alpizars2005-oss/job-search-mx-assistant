@@ -126,14 +126,19 @@ def _vacancy_residence_restriction(text: str, match: re.Match, *, location=False
     if not _current_geographic_scope(text, match) or _geographic_negated(text, match):
         return False
     before = _GEOGRAPHIC_SEPARATOR.split(text[:match.start()])[-1]
-    if re.search(r'\b(?:office|offices|client|clients|customer|customers|headquarters|oficina|oficinas|clientes?)\b', before):
+    country_only = match.groupdict().get('country_only')
+    copula = r'(?:is|are|es|esta|will be|may be|might be|could be)'
+    role_predicate = rf'(?:role|position|vacancy|job|puesto|vacante)\s+(?:{copula}\s+)?'
+    # Customer support can name the restricted role itself, rather than its clients.
+    role_bound = country_only and re.search(rf'\b{role_predicate}(?:the\s+)?$', before)
+    if not role_bound and re.search(r'\b(?:office|offices|client|clients|customer|customers|headquarters|oficina|oficinas|clientes?)\b', before):
         return False
-    after = _GEOGRAPHIC_SEPARATOR.split(text[match.end():])[0]
+    remaining = text[match.end():]
+    after = _GEOGRAPHIC_SEPARATOR.split(remaining)[0]
     if re.match(r'\s+(?:need|must|have)\b', after):
         return False
     if re.search(r'\b(?:reimbursement|benefits?|tax forms?|w-9|relocation assistance|reembolso|beneficios?)\b', after):
         return False
-    country_only = match.groupdict().get('country_only')
     if country_only:
         # A bare country qualifier must govern hiring/location, rather than a
         # different predicate. EST next to an explicit US-only label does not
@@ -141,17 +146,23 @@ def _vacancy_residence_restriction(text: str, match: re.Match, *, location=False
         unrelated = r'\b(?:benefits?|reimbursement|expenses?|tax forms?|w-9|time[ -]?zones?|hours?|horarios?|beneficios?|reembolso)\b'
         if re.search(unrelated, before) or re.match(r'\s+' + unrelated, after):
             return False
+        # "role" alone is insufficient: benefits, equipment and schedules can
+        # also be country-specific. Require a hiring predicate or label whose
+        # complement is the country, rather than any earlier role mention.
         if not location and not re.search(
-                r'\b(?:role|position|vacancy|location|eligibility|hire|hiring|'
-                r'puesto|vacante|ubicacion|contratacion)\b', before):
+                rf'\b(?:{role_predicate}|'
+                r'(?:location|eligibility|residence|hiring|ubicacion|residencia|contratacion)\s*:\s*|'
+                rf'(?:hiring|hire|employ|contratacion|contratar|contratamos)\s+(?:{copula}\s+)?'
+                r'(?:(?:in|from|en|desde)\s+)?)(?:the\s+)?$', before):
             return False
     # An explicit Mexico alternative/exception means the country list does not
     # establish an incompatible residence requirement. It grants no permission.
-    if re.search(r'\b(?:or|except|excepting|including|o|excepto|incluyendo)\b[^.;]{0,50}\bmexico\b', after):
+    if re.match(r'\s*,?\s*(?:or|except|excepting|including|o|excepto|incluyendo)\b[^.;]{0,50}\bmexico\b', remaining):
         return False
-    if country_only and re.search(
+    if (country_only and re.search(
             r'\b(?:if|may|might|could|possibly|potentially|depending|pending|'
-            r'subject to|si|quizas|podria)\b', before):
+            r'subject to|si|quizas|podria)\b', before)) or re.match(
+            r'\s*,?\s*(?:if|unless|subject to|pending|depending on|si|sujeto a)\b', remaining):
         return None
     return True
 
