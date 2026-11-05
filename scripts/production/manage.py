@@ -41,10 +41,21 @@ class DeploymentError(ValueError):
 
 
 def _run(argv, *, env=None):
+    # Never hand the administrator's credentials, Python import overrides or
+    # pip install redirections to staged code or to the service account.
+    clean = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8',
+             'PYTHONNOUSERSITE': '1', 'PYTHONDONTWRITEBYTECODE': '1',
+             'PIP_CONFIG_FILE': os.devnull, 'PIP_NO_INDEX': '1',
+             'PIP_DISABLE_PIP_VERSION_CHECK': '1'}
+    for key in ('HOME', 'USER', 'LOGNAME', 'JOB_SEARCH_ASSISTANT_HOME',
+                'JOB_SEARCH_ASSISTANT_BACKUPS', 'JOB_SEARCH_ASSISTANT_LOGS',
+                'DRY_RUN', 'AUTO_SUBMIT'):
+        if env is not None and key in env:
+            clean[key] = env[key]
     try:
         completed = subprocess.run(list(map(str, argv)), check=True, text=True,
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                   timeout=180, env=env)
+                                   timeout=180, env=clean)
     except (OSError, subprocess.SubprocessError):
         raise DeploymentError('production_command_failed') from None
     return completed.stdout

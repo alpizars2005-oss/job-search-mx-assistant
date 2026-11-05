@@ -5,6 +5,7 @@ import json
 import os
 import sqlite3
 import tempfile
+import sys
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -23,6 +24,16 @@ OTHER = 'b' * 40
 
 @unittest.skipUnless(os.name == "posix", "Production provisioning targets Debian Linux")
 class ProductionInstallTests(unittest.TestCase):
+    def test_admin_subprocess_does_not_inherit_secrets_or_python_overrides(self):
+        with patch.dict(os.environ, {'SYNTHETIC_ADMIN_SECRET': 'PRIVATE',
+                                     'PYTHONPATH': '/private/admin-code',
+                                     'PIP_TARGET': '/private/admin-target'}):
+            output = manage._run([sys.executable, '-c',
+                'import os,json;print(json.dumps({k:os.environ.get(k) for k in '
+                '("SYNTHETIC_ADMIN_SECRET","PYTHONPATH","PIP_TARGET")}))'])
+        self.assertEqual(json.loads(output), {'SYNTHETIC_ADMIN_SECRET': None,
+                                              'PYTHONPATH': None, 'PIP_TARGET': None})
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
