@@ -6,6 +6,8 @@ from .evaluator import COMMON_TECH_SKILLS, JUNIOR_TERMS, contains_phrase, matchi
 from .models import CandidateProfile, EvaluationResult, JobPosting
 from .sources.models import NormalizedJob
 
+ALGORITHM_VERSION = 'matching_v3'
+
 
 def evaluate_match(profile: CandidateProfile, job: JobPosting | NormalizedJob) -> EvaluationResult:
     requirements = evaluate_eligibility(profile, job)
@@ -98,7 +100,7 @@ def evaluate_match(profile: CandidateProfile, job: JobPosting | NormalizedJob) -
     return EvaluationResult(
         score=score, recommendation=recommendation, matched_skills=matched, missing_skills=missing,
         role_signals=roles, positive_signals=sorted(set(positive)), risks=sorted(set(risks)),
-        reasons=reasons, algorithm_version='matching_v2', requirements=requirements,
+        reasons=reasons, algorithm_version=ALGORITHM_VERSION, requirements=requirements,
         requirements_met=[r['name'] for r in requirements if r['status'] == 'met'],
         missing_requirements=[r['name'] for r in unmet],
         restrictions=[r['reason_code'] for r in unmet], unknowns=[r['name'] for r in unknown],
