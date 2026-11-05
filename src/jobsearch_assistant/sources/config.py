@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import stat
 from pathlib import Path
 
 from .http import _invalid_constant, _unique_object
@@ -14,7 +16,17 @@ def load_source_config(path: Path | None) -> tuple[list[SourceConfig], RequestPo
     if path is None:
         return [], RequestPolicy()
     try:
-        with Path(path).open('rb') as handle:
+        path = Path(path)
+        before = path.lstat()
+        if not stat.S_ISREG(before.st_mode):
+            raise ValueError
+        flags = os.O_RDONLY | getattr(os, 'O_BINARY', 0) | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0)
+        descriptor = os.open(path, flags)
+        with os.fdopen(descriptor, 'rb') as handle:
+            current = os.fstat(handle.fileno())
+            if (not stat.S_ISREG(current.st_mode)
+                    or (before.st_dev, before.st_ino) != (current.st_dev, current.st_ino)):
+                raise ValueError
             raw = handle.read(MAX_CONFIG_BYTES + 1)
         if len(raw) > MAX_CONFIG_BYTES:
             raise ValueError

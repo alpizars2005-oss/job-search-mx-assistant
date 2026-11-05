@@ -87,6 +87,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     add_workflow_parsers(sub, vacancy_sub)
 
+    from .automation_cli import add_automation_parsers
+
+    add_automation_parsers(sub)
+
     database = sub.add_parser("database", help="Create consistent backups or restore to a new file")
     database_sub = database.add_subparsers(dest="database_command", required=True)
     for name in ("backup", "restore"):
@@ -309,6 +313,10 @@ def command_database(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
+    if args.command == "automation":
+        from .automation_cli import dispatch_automation
+
+        raise SystemExit(dispatch_automation(args))
     if args.command in {"resumes", "candidacies"} or (
         args.command == "vacancies" and args.vacancy_command == "import"
     ):
