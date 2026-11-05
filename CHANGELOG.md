@@ -1,3 +1,12 @@
+## Corrección preproducción R-01
+
+- matching_v4 interpreta etiquetas completas de ubicación exclusiva, incluidas
+  variantes US only, US-based y listas US & Canada; conserva evidencia y offsets.
+- Alternativas explícitas México evitan inferir exclusividad de una ubicación US
+  sin only; las restricciones excluyentes explícitas siguen teniendo precedencia.
+- Las observaciones v3 se reevalúan bajo v4 sin reescribir historial ni snapshots.
+- Sin cambios en despliegue, fuentes activas, candidaturas o transporte externo.
+
 ## Fase6 — hardening propuesto
 
 - matching_v3: restricciones geográficas, contradicciones y contexto de rol conservador.
