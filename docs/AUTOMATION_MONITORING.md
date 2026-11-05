@@ -41,7 +41,7 @@ No se generan hechos de CV, borradores, aprobaciones ni envíos automáticamente
 
 Esquema SQLite 5 aditivo desde 1–4, con backup consistente previo y rollback
 transaccional. Las tablas de automatización conservan snapshots y referencias
-inmutables. `matching_v4` se aplica a evaluaciones nuevas, conservando v3/v2/legacy_v1.
+inmutables. `matching_v5` se aplica a evaluaciones nuevas, conservando v4/v3/v2/legacy_v1.
 Cambio solo en retrieved_at reutiliza evaluación; cambios semánticos revocan
 aprobaciones exactas mediante el guard previo de Fase4.
 

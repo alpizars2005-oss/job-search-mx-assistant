@@ -122,8 +122,8 @@ elegibilidad o requisitos, usar `insufficient_information`.
 Cada resultado explicará requisitos cumplidos y faltantes, información pendiente,
 motivos de compatibilidad/exclusión y recomendaciones honestas para mejorar la
 candidatura. No puntuar información desconocida como verificada. Estos estados
-son el contrato implementado para evaluaciones nuevas `matching_v4`; conservar
-puntajes, etiquetas y JSON históricos `matching_v3`/`matching_v2`/`legacy_v1` sin reinterpretación automática.
+son el contrato implementado para evaluaciones nuevas `matching_v5`; conservar
+puntajes, etiquetas y JSON históricos `matching_v4`/`matching_v3`/`matching_v2`/`legacy_v1` sin reinterpretación automática.
 
 ## Arquitectura y operación
 

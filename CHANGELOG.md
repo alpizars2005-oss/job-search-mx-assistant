@@ -1,3 +1,15 @@
+## Corrección preproducción R-01b y N-03
+
+- matching_v5 reconoce country-only en condiciones de contratación aplicables al
+  puesto, conservando permiso México y restricción contradictorios como evidencia.
+- Añadir formatos ATS US Remote, separadores pipe/raya, alternativa ciudad-remoto,
+  United States of America, Remoto y Only open to candidates.
+- Separar residencia, ubicación y predicados de oficinas/clientes/beneficios/horario;
+  condiciones geográficas posibles o pendientes requieren revisión, sin exclusión.
+- Conservar legacy_v1/v2/v3/v4; reevaluar una observación v4 una sola vez sin duplicar
+  vacantes/evaluaciones v5 ni reescribir los snapshots históricos.
+- Sin cambios de timers, instaladores, backups, servicios, Telegram o transporte.
+
 ## Corrección preproducción R-01
 
 - matching_v4 interpreta etiquetas completas de ubicación exclusiva, incluidas
