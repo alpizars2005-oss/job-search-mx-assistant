@@ -220,7 +220,15 @@ y podrá reutilizar las identidades/snapshots. Aquí no se implementan CV,
 borradores, envío, notificaciones, scheduler ni cambios en PizzaLab.
 
 
-## Contrato actual de nuevas evaluaciones: matching_v7
+## Nuevas evaluaciones: matching_v8
+
+R-01c amplía restricciones explícitas de contratación y formatos solo/EU. La caché
+v7 se reevalúa una vez con v8; nuevas observaciones iguales reutilizan el ID v8.
+Los snapshots/fingerprints/hashes legacy_v1–v7 y los reportes publicados permanecen
+intactos. Revisar manualmente high_priority del piloto; gramática acotada y sin
+certificación jurídica. Detalles y regresiones en [hardening](PHASE_6_HARDENING.md).
+
+## Contrato anterior: matching_v7
 
 R-01b/N-03 completan las condiciones geográficas country-only y formatos ATS
 acotados. V4 podía persistir una prioridad incorrecta y reutilizarla en automatización;

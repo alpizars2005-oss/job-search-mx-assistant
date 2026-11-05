@@ -318,7 +318,7 @@ class GeographicLocationTests(unittest.TestCase):
             self.assertNotEqual(current['evaluation_id'], previous)
             saved = {item['id']: item for item in database.list_evaluations(vacancy)}
             self.assertEqual(saved[previous], history)
-            self.assertEqual(saved[current['evaluation_id']]['algorithm_version'], 'matching_v7')
+            self.assertEqual(saved[current['evaluation_id']]['algorithm_version'], 'matching_v8')
             self.assertEqual(current['classification'], 'insufficient_information')
 
     def test_v4_cache_is_reevaluated_once_and_all_older_snapshot_bytes_survive(self):
@@ -356,13 +356,13 @@ class GeographicLocationTests(unittest.TestCase):
             with database._connection() as connection:
                 kept = [tuple(row) for row in connection.execute('''SELECT id,algorithm_version,
                     job_snapshot_json,profile_snapshot_json,evaluation_json FROM evaluations
-                    WHERE algorithm_version != 'matching_v7' ORDER BY id''')]
+                    WHERE algorithm_version != 'matching_v8' ORDER BY id''')]
             self.assertEqual(kept, history)
             evaluations = database.list_evaluations(vacancy)
             self.assertEqual(len(evaluations), 5)
             self.assertEqual(len(database.list_vacancies()), 1)
             new = next(item for item in evaluations if item['id'] == current['evaluation_id'])
-            self.assertEqual(new['algorithm_version'], 'matching_v7')
+            self.assertEqual(new['algorithm_version'], 'matching_v8')
             self.assertEqual(new['evaluation']['recommendation'], 'insufficient_information')
 
     def test_published_candidate_caches_cannot_reuse_false_exclusions(self):

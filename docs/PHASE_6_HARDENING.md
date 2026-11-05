@@ -168,3 +168,50 @@ Validación local final del parser: 434 pruebas unittest, sin fallos (un skip ex
 de Windows en Linux); pytest: 433 pruebas y 988 subtests, sin fallos, el mismo skip.
 pip check, compileall, ruff E9/F sobre src/tests y git diff --check satisfactorios.
 Los resultados y enlaces de CI por HEAD se registran en los cuerpos de #11 y #12.
+## R-01c — matching_v8, 2026-11-05
+
+Base main e942f80b8c27512c4c5f96ad07726e9c403bbe3d, con #11/#12 integrados.
+El filtro country-only omitía Open to candidates in Canada only y el alcance
+ignoraba Position restricted to US residents sin this. Ambas regresiones se
+comprobaron contra v2: contradictory en v2, met en v7 con permiso México.
+Faltaban además US-only role, only hire in, outside-country/not considered,
+solo para residentes, Remoto (solo EE. UU.) y Remote - EU only.
+
+Se amplían únicamente gramáticas/contextos acotados: etiqueta singular del puesto,
+predicados de contratación, solo explícito y EU/European Union. No se convierte una
+mención de Europe en residencia. Condiciones pendientes conservan unknown; negación,
+otros puestos, beneficios, clientes y alternativas México conservan su alcance.
+EE. UU. puede ocupar varios spans originales: se conserva evidencia/offsets/procedencia.
+
+RED v7: 32 escenarios de los ocho casos × ambos modelos × con/sin permiso México,
+12 escenarios condicionales y una regresión de caché v7. Se reprodujeron además
+cuatro falsos descartes durante el ajuste de la etiqueta Position; se limitó al
+predicado completo y se añadió el control de ejemplos de otros equipos. Los
+controles pedidos mantienen high_priority con permiso México; US only on-call team
+sigue siendo incidental. Remote/LATAM/México sin permiso no prueban contratación.
+
+matching_v8 evita reutilizar resultados v7 incorrectos. Una regresión con SQLite y
+reportes reales en un directorio sintético conserva los JSON originales y sus SHA,
+fingerprints e IDs legacy_v1–v7; reevalúa una vez, reinicia y reutiliza el ID v8 sin
+duplicados. El reporte v7 publicado mantiene sus bytes; el nuevo referencia el ID
+y clasificación v8. No hay migración ni modificación de storage/reportes/systemd,
+manage.py, workflow Claude o historial Telegram.
+
+Las reglas lingüísticas siguen siendo acotadas: revisar a mano los reportes
+high_priority del piloto, especialmente los generados con v7. No son certificación
+legal ni una garantía de cobertura de todo lenguaje. No hay despliegue, candidaturas
+o llamadas Claude; resultados finales y CI del HEAD quedan en el PR independiente.
+
+Validación local final: 496 unittest OK (un skip exclusivo de Windows en Linux),
+495 pytest y 1193 subtests OK (mismo skip), pip check/compileall/Ruff E9,F/diff check
+satisfactorios. Los 18 métodos geográficos anteriores conservan sus aserciones;
+solo cambian las expectativas de la versión actual. No se añaden skips.
+
+La revisión interna de e942f80..8b936d8 identificó tres Important: other/another
+antes de US-only role perdía alcance, The position no se reconocía y benefits en
+el nombre de un puesto podía ocultar su restricción. Un único pase añadió 32
+escenarios RED/GREEN y corrigió el vínculo de sujeto, artículo y prestación
+incidental. También cubre un puesto actual tras mencionar otros y profesiones con
+customer/benefits. El candidato no se publicó antes de estas correcciones: v8
+sigue siendo la versión nueva. La revisión se refiere a ese candidato; no se le
+atribuye revisión posterior del arreglo ni una ejecución de Claude.
