@@ -83,6 +83,10 @@ def build_parser() -> argparse.ArgumentParser:
     vacancy_evaluate.add_argument("--json", action="store_true", dest="as_json")
     vacancy_evaluate.add_argument("--language", choices=("es", "en"))
 
+    from .workflow_cli import add_workflow_parsers
+
+    add_workflow_parsers(sub, vacancy_sub)
+
     database = sub.add_parser("database", help="Create consistent backups or restore to a new file")
     database_sub = database.add_subparsers(dest="database_command", required=True)
     for name in ("backup", "restore"):
@@ -157,7 +161,12 @@ def command_applications(args: argparse.Namespace) -> int:
     if args.status is None and args.notes is None:
         print("Provide --status and/or --notes.", file=sys.stderr)
         return 2
-    updated = database.update(args.id, status=args.status, notes=args.notes)
+    try:
+        updated = database.update(args.id, status=args.status, notes=args.notes)
+    except (ValueError, OSError, sqlite3.Error):
+        print("Local update failed; check the allowed transition. / "
+              "Falló la actualización local; revisa la transición permitida.", file=sys.stderr)
+        return 2
     if not updated:
         print(f"Application not found: {args.id}", file=sys.stderr)
         return 2
@@ -300,6 +309,12 @@ def command_database(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
+    if args.command in {"resumes", "candidacies"} or (
+        args.command == "vacancies" and args.vacancy_command == "import"
+    ):
+        from .workflow_cli import dispatch_workflow
+
+        raise SystemExit(dispatch_workflow(args))
     if args.command == "discover":
         # Only --save opts in to private profile/database access.
         try:

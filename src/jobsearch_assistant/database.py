@@ -6,7 +6,7 @@ import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +19,7 @@ from .models import (
     JobPosting,
 )
 from .sources.models import NormalizedJob
+from .workflow_contracts import WorkflowError, content_digest, require_dry_run
 
 __all__ = ['SCHEMA_VERSION', 'ApplicationDatabase']
 
@@ -63,6 +64,21 @@ class ApplicationDatabase:
         payload = _canonical_json(asdict(job))
         with self._connection() as connection:
             connection.execute('BEGIN IMMEDIATE')
+            previous = connection.execute(
+                'SELECT id, job_json FROM vacancies WHERE source=? AND source_board=? AND source_job_id=?',
+                (job.source, job.source_board, job.source_job_id),
+            ).fetchone()
+            if previous:
+                old_data = json.loads(previous['job_json'])
+                new_data = asdict(job)
+                old_data.pop('retrieved_at', None)
+                new_data.pop('retrieved_at', None)
+                if content_digest(old_data) != content_digest(new_data):
+                    managed = connection.execute('SELECT * FROM candidacies WHERE vacancy_id=?',
+                                                 (previous['id'],)).fetchone()
+                    if managed:
+                        require_dry_run()
+                        self._invalidate_candidacy(connection, managed, 'vacancy_changed')
             connection.execute('''
                 INSERT INTO vacancies(source, source_board, source_job_id, job_json)
                 VALUES (?, ?, ?, ?)
@@ -151,45 +167,50 @@ class ApplicationDatabase:
     def add(self, record: ApplicationRecord) -> int:
         if record.status not in VALID_STATUSES:
             raise ValueError(f"Invalid status: {record.status}")
-        payload = json.dumps(record.evaluation.to_dict(), ensure_ascii=False)
-        identity = legacy_identity(record.job.url, record.job.company, record.job.title)
         with self._connection() as connection:
             connection.execute('BEGIN IMMEDIATE')
-            existing = connection.execute(
-                'SELECT application_id FROM application_identities WHERE identity=?',
-                (identity,),
-            ).fetchone()
-            if existing:
-                return int(existing[0])
-            cursor = connection.execute(
-                """
-                INSERT INTO applications(
-                    title, company, location, url, description,
-                    score, recommendation, evaluation_json,
-                    status, notes, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    record.job.title,
-                    record.job.company,
-                    record.job.location,
-                    record.job.url,
-                    record.job.description,
-                    record.evaluation.score,
-                    record.evaluation.recommendation,
-                    payload,
-                    record.status,
-                    record.notes,
-                    record.created_at,
-                    record.updated_at,
-                ),
-            )
-            record_id = int(cursor.lastrowid)
-            connection.execute(
-                'INSERT INTO application_identities(identity, application_id) VALUES (?, ?)',
-                (identity, record_id),
-            )
-            return record_id
+            return self._add_on_connection(connection, record)
+
+    @staticmethod
+    def _add_on_connection(connection: sqlite3.Connection, record: ApplicationRecord) -> int:
+        """Reuse tracker identity within the caller's transaction."""
+        payload = json.dumps(record.evaluation.to_dict(), ensure_ascii=False)
+        identity = legacy_identity(record.job.url, record.job.company, record.job.title)
+        existing = connection.execute(
+            'SELECT application_id FROM application_identities WHERE identity=?',
+            (identity,),
+        ).fetchone()
+        if existing:
+            return int(existing[0])
+        cursor = connection.execute(
+            """
+            INSERT INTO applications(
+                title, company, location, url, description,
+                score, recommendation, evaluation_json,
+                status, notes, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                record.job.title,
+                record.job.company,
+                record.job.location,
+                record.job.url,
+                record.job.description,
+                record.evaluation.score,
+                record.evaluation.recommendation,
+                payload,
+                record.status,
+                record.notes,
+                record.created_at,
+                record.updated_at,
+            ),
+        )
+        record_id = int(cursor.lastrowid)
+        connection.execute(
+            'INSERT INTO application_identities(identity, application_id) VALUES (?, ?)',
+            (identity, record_id),
+        )
+        return record_id
 
     def list(self, status: str | None = None) -> list[ApplicationRecord]:
         query = "SELECT * FROM applications"
@@ -205,27 +226,105 @@ class ApplicationDatabase:
         return [self._row_to_record(row) for row in rows]
 
     def update(self, record_id: int, status: str | None = None, notes: str | None = None) -> bool:
-        if status is not None and status not in VALID_STATUSES:
-            raise ValueError(f"Invalid status: {status}")
-        assignments: list[str] = []
-        values: list[Any] = []
-        if status is not None:
-            assignments.append("status = ?")
-            values.append(status)
-        if notes is not None:
-            assignments.append("notes = ?")
-            values.append(notes)
-        if not assignments:
-            return False
-        assignments.append("updated_at = ?")
-        values.append(datetime.now(timezone.utc).isoformat(timespec="seconds"))
-        values.append(record_id)
         with self._connection() as connection:
+            connection.execute('BEGIN IMMEDIATE')
+            managed = connection.execute('SELECT * FROM candidacies WHERE application_id=?',
+                                         (record_id,)).fetchone()
+            if managed:
+                require_dry_run()
+                if type(record_id) is not int or record_id <= 0:
+                    raise WorkflowError('invalid_application_identifier')
+                return self._update_managed_tracking(connection, managed, status=status, notes=notes)
+            if status is not None and status not in VALID_STATUSES:
+                raise ValueError(f"Invalid status: {status}")
+            assignments: list[str] = []
+            values: list[Any] = []
+            if status is not None:
+                assignments.append("status = ?")
+                values.append(status)
+            if notes is not None:
+                assignments.append("notes = ?")
+                values.append(notes)
+            if not assignments:
+                return False
+            assignments.append("updated_at = ?")
+            values.append(datetime.now(timezone.utc).isoformat(timespec="seconds"))
+            values.append(record_id)
             cursor = connection.execute(
-                f"UPDATE applications SET {', '.join(assignments)} WHERE id = ?",
-                tuple(values),
+                f"UPDATE applications SET {', '.join(assignments)} WHERE id = ?", tuple(values),
             )
             return cursor.rowcount > 0
+
+    @staticmethod
+    def _event(connection: sqlite3.Connection, candidacy: sqlite3.Row, kind: str, snapshot: Any) -> None:
+        connection.execute("""
+            INSERT INTO candidacy_events(candidacy_id, revision, event_type, snapshot_json, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        """, (candidacy['id'], candidacy['revision'], kind, _canonical_json(snapshot),
+              datetime.now(timezone.utc).isoformat()))
+
+    @classmethod
+    def _invalidate_candidacy(cls, connection: sqlite3.Connection, candidacy: sqlite3.Row,
+                             reason: str) -> None:
+        cursor = connection.execute("""
+            UPDATE candidacy_authorizations SET status='invalidated'
+            WHERE candidacy_id=? AND status='active'
+        """, (candidacy['id'],))
+        if cursor.rowcount or candidacy['review_digest'] is not None:
+            connection.execute("""
+                UPDATE candidacies SET review_digest=NULL,
+                    workflow_state=CASE WHEN workflow_state='simulated' THEN 'simulated' ELSE 'draft' END,
+                    updated_at=? WHERE id=?
+            """, (datetime.now(timezone.utc).isoformat(), candidacy['id']))
+            cls._event(connection, candidacy, 'invalidated', {'reason': reason})
+
+    @classmethod
+    def _update_managed_tracking(cls, connection: sqlite3.Connection, candidacy: sqlite3.Row, *,
+                                 status: str | None = None, notes: str | None = None,
+                                 outcome: str | None = None, next_step: str | None = None,
+                                 follow_up_on: str | None = None) -> bool:
+        application = connection.execute('SELECT status, notes FROM applications WHERE id=?',
+                                         (candidacy['application_id'],)).fetchone()
+        graph = {
+            'saved': {'interested', 'applied', 'rejected', 'withdrawn'},
+            'interested': {'saved', 'applied', 'rejected', 'withdrawn'},
+            'applied': {'screening', 'interview', 'offer', 'rejected', 'withdrawn'},
+            'screening': {'interview', 'offer', 'rejected', 'withdrawn'},
+            'interview': {'offer', 'rejected', 'withdrawn'},
+            'offer': set(), 'rejected': set(), 'withdrawn': set(),
+        }
+        if (status is not None and (not isinstance(status, str) or status not in graph
+                or (status != application['status'] and status not in graph.get(application['status'], set())))):
+            raise WorkflowError('invalid_tracker_transition')
+        for value in (notes, outcome, next_step, follow_up_on):
+            if value is not None and (not isinstance(value, str) or len(value) > 100_000):
+                raise WorkflowError('invalid_tracking_value')
+        if follow_up_on:
+            try:
+                parsed = date.fromisoformat(follow_up_on)
+                if parsed.isoformat() != follow_up_on:
+                    raise ValueError()
+            except ValueError:
+                raise WorkflowError('invalid_follow_up_date') from None
+        tracker = {'status': application['status'], 'notes': application['notes'],
+                   'outcome': candidacy['outcome'], 'next_step': candidacy['next_step'],
+                   'follow_up_on': candidacy['follow_up_on']}
+        previous = tracker.copy()
+        for key, value in (('status', status), ('notes', notes), ('outcome', outcome),
+                           ('next_step', next_step), ('follow_up_on', follow_up_on)):
+            if value is not None:
+                tracker[key] = value
+        if previous == tracker:
+            return False
+        now = datetime.now(timezone.utc).isoformat()
+        connection.execute('UPDATE applications SET status=?, notes=?, updated_at=? WHERE id=?',
+                           (tracker['status'], tracker['notes'], now, candidacy['application_id']))
+        connection.execute('UPDATE candidacies SET outcome=?, next_step=?, follow_up_on=?, updated_at=? WHERE id=?',
+                           (tracker['outcome'], tracker['next_step'], tracker['follow_up_on'], now, candidacy['id']))
+        if tracker['status'] not in ('saved', 'interested'):
+            cls._invalidate_candidacy(connection, candidacy, 'tracker_advanced')
+        cls._event(connection, candidacy, 'tracking_updated', tracker)
+        return True
 
     def update_status(self, record_id: int, status: str) -> bool:
         return self.update(record_id, status=status)

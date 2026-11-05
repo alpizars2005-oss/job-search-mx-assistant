@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Agregar maestros ES/EN con evidencia/atestación, CV TXT/DOCX deterministas,
+  hashes, trazabilidad y almacenamiento privado fuera del checkout.
+- Extender SQLite a esquema 3 con migraciones seguras, revisiones inmutables,
+  tracker gestionado y autorizaciones exactas de un uso para simulación local.
+- Agregar CLI de documentos/borradores, importación manual offline de vacantes y
+  errores redactados de transiciones en la CLI/GUI anteriores.
+- Conservar historial al cambiar destino y revocar capacidades durante restore;
+  documentar backup conjunto, formatos ATS, política y checklist manual.
+
 - Agregar esquema SQLite 2, migración transaccional con backup previo, validación
   de versiones, deduplicación persistente y snapshots de evaluaciones.
 - Evaluar elegibilidad antes de compatibilidad mediante `matching_v2`, seis

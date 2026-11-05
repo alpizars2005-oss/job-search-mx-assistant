@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "candidate": {
+    "name": "Persona sintética",
+    "contact": [
+      "synthetic@example.test"
+    ]
+  },
+  "evidence": [
+    {
+      "id": "synthetic-proof",
+      "path": "resume-evidence.synthetic.txt",
+      "sha256": "48c3c0f4551c86198f954d7180da67fe294ce1df3a4ab28809282c7d95a9589d"
+    }
+  ],
+  "claims": [
+    {
+      "id": "synthetic-project",
+      "kind": "project",
+      "text": {
+        "es": "Ejemplo sintético: proyecto personal de Python sin verificar.",
+        "en": "Synthetic example: unverified personal Python project."
+      },
+      "evidence_ids": [
+        "synthetic-proof"
+      ],
+      "attested": false
+    }
+  ]
+}

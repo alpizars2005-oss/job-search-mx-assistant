@@ -59,3 +59,23 @@ la vacante. `vacancies evaluate` reevalúa explícitamente con el perfil actual 
 añade una versión cuando cambian las entradas; no modifica resultados anteriores.
 La GUI y `analyze` usan el mismo motor y conservan el tracker manual. Detalles y
 límites en [SQLITE_MATCHING](SQLITE_MATCHING.md). No hay servicios nuevos.
+
+## CV y candidaturas implementados en Fase 4
+
+- `workflow_contracts.py`: JSON canónico, hashes de contenido/vacante, errores
+  redactados y política local fail-closed.
+- `resumes.py` y `resume_documents.py`: maestro bilingüe con evidencia, almacén
+  privado inmutable, publicación exclusiva y exportación TXT/DOCX determinista.
+- `candidacies.py`: revisiones y snapshots, revisión/digest, autorizaciones de
+  un uso, simulación sin sender y consulta consistente del historial.
+- `migrations.py`/`database.py`: esquema 3 aditivo, backup previo, tracker gestionado
+  con transiciones y restauración que revoca capacidades en un destino nuevo.
+- `drafts.py`/`workflow_cli.py`: composición literal de hechos y comandos opt-in;
+  importación manual offline sin seguir URLs. CLI/GUI previas usan el mismo tracker.
+
+Los archivos se publican antes de insertar metadata que los referencie. Un crash
+puede dejar archivos huérfanos privados, nunca una referencia válida a un documento
+parcial. Un recibo de simulación no representa una operación externa. La futura
+entrega a un ATS requiere diseño/autorización propios; no se disfraza como consumo
+SQLite una garantía de exactly-once sobre un servicio remoto. Ver
+[contrato de operación](RESUMES_CANDIDACIES.md).

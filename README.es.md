@@ -118,7 +118,7 @@ se guardan resultados en SQLite.
 Consulta [configuración y límites](docs/JOB_SOURCES.md). Los perfiles siguen
 usando JSON y la GUI conserva su flujo actual.
 
-## Persistencia y matching explicable
+## Persistencia y matching explicable (Fase 3)
 
 ```bash
 jobsearch discover --config /ruta/externa/sources.json --save
@@ -134,10 +134,29 @@ evaluaciones nuevas comprueban elegibilidad antes de clasificar la compatibilida
 empleador pueda contratar desde México; los datos esenciales ausentes se muestran
 como desconocidos. El puntaje no es una probabilidad de contratación.
 
-SQLite migra del esquema 1 al 2 con backup consistente previo y transacción;
-los históricos conservan sus evaluaciones originales. Consulta
+La Fase 3 introdujo esquema 2 con backup consistente previo y transacción;
+Fase 4 lo amplía a 3. Los históricos conservan sus evaluaciones originales. Consulta
 [migración, backup, rollback, perfil y límites](docs/SQLITE_MATCHING.md) antes de
 actualizar una base importante. Guardar una vacante no crea ni envía una candidatura.
+
+## CV y candidaturas locales
+
+```bash
+jobsearch resumes import /ruta/privada/master.json
+jobsearch resumes tailor MASTER_ID --vacancy 1 --language es --format docx --claim FACT_ID
+jobsearch candidacies create --vacancy 1 --resume VERSION_ID
+jobsearch candidacies review 1
+jobsearch candidacies approve 1 --digest DIGEST_REVISADO
+jobsearch candidacies simulate AUTHORIZATION_ID
+```
+
+Maestros bilingües y documentos permanecen fuera del repositorio. Solo se componen
+hechos respaldados/atestiguados; las versiones TXT/DOCX tienen huella SHA-256 y
+trazabilidad. Aprobar vincula empresa, vacante, versión y contenido exactos; la
+simulación consume una vez y devuelve `submitted=false`. No envía candidaturas.
+SQLite migra ahora a esquema 3 con backup previo, preservando históricos.
+Consulta [configuración, seguimiento, backup y checklist](docs/RESUMES_CANDIDACIES.md).
+Las nuevas operaciones están en CLI; el tracker GUI anterior sigue disponible.
 
 ## Datos personales
 

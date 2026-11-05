@@ -172,6 +172,16 @@ normalizadas y evaluaciones versionadas. `jobsearch vacancies list` y
 SQLite migra de esquema 1 a 2 con backup previo y conserva todos los históricos.
 Consulta [operación, perfil y rollback](docs/SQLITE_MATCHING.md).
 
+## CV y candidaturas locales — Fase 4
+
+`jobsearch resumes import /ruta/privada/master.json` incorpora un maestro bilingüe
+con evidencia/atestación. `resumes tailor` genera TXT/DOCX sin inventar hechos;
+`candidacies create/review/approve/simulate` enlaza empresa, vacante y versión/SHA
+exacta mediante una autorización local de un uso. No hay envío externo y applied
+continúa siendo seguimiento manual. SQLite esquema 3 preserva los históricos y
+revoca permisos activos al recuperar backups. Ver
+[operación y límites](docs/RESUMES_CANDIDACIES.md).
+
 ## Fit score
 
 New evaluations check eligibility before compatibility and return one of the six

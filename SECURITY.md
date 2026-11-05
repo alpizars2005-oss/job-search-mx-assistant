@@ -39,3 +39,24 @@ del empleador son evidencia observada, no verificación jurídica independiente.
 La falta de información esencial conserva `insufficient_information`. La versión
 histórica `legacy_v1` se mantiene para lectura/reproducción, no para filtrar ofertas
 nuevas. Límites, operación y rollback en [SQLITE_MATCHING](docs/SQLITE_MATCHING.md).
+
+## Documentos, borradores y autorización — Fase 4
+
+El nuevo flujo exige DRY_RUN=true/AUTO_SUBMIT=false y no implementa sender.
+La aprobación enlaza empresa, snapshot/ID de vacante, versión/SHA exacta de CV,
+contenido y revisión. SQLite consume cada ID una vez; errores de integridad
+confirman revocación antes de devolver el error. Cambios de destino o documentos
+requieren revisión nueva. Applied no transmite información.
+
+El almacén valida JSON/tipos/tamaños/rutas, rechaza URLs y archivos no regulares
+de evidencia y no ejecuta contenido. TXT/DOCX se componen de hechos literales con
+evidencia/atestación, sin macros ni relaciones externas. Los manifiestos y bytes se
+verifican, pero un hash no certifica la verdad del texto ni resiste a un administrador
+que pueda falsificar todo el almacenamiento. La publicación requiere enlaces
+duros; los archivos huérfanos tras un crash no se borran automáticamente.
+
+La restauración oficial prepara una copia privada, revoca permisos activos,
+verifica y publica exclusivamente un destino nuevo. Una copia manual de una base
+antigua omite esa revocación y no es un procedimiento seguro de recuperación.
+No hay coordinación global entre clones independientes ni transporte distribuido.
+Operación, privacidad y comprobaciones en [RESUMES_CANDIDACIES](docs/RESUMES_CANDIDACIES.md).
