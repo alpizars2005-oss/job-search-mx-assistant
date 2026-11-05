@@ -33,7 +33,7 @@ def private_path(value) -> Path:
             info = component.lstat()
         except FileNotFoundError:
             continue
-        if stat.S_ISLNK(info.st_mode):
+        if stat.S_ISLNK(info.st_mode) or getattr(info, 'st_reparse_tag', 0):
             raise PrivateStorageError('private_storage_symlink')
         if component != original and not stat.S_ISDIR(info.st_mode):
             raise PrivateStorageError()

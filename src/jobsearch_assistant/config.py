@@ -15,7 +15,10 @@ APP_NAME = "JobSearchAssistant"
 def data_home() -> Path:
     override = os.getenv("JOB_SEARCH_ASSISTANT_HOME")
     if override:
-        return private_path(Path(override).expanduser())
+        # Validate the supplied spelling before canonicalizing Windows 8.3 names;
+        # otherwise resolve() could conceal a supplied symlink or junction.
+        supplied = private_path(Path(override).expanduser())
+        return private_path(supplied.resolve())
 
     if platform.system() == "Windows":
         base = Path(os.getenv("APPDATA", Path.home()))
