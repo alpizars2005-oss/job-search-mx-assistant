@@ -17,6 +17,19 @@ from .sources.models import HttpResponse, SourceError
 from .telegram import TelegramConfig, TelegramRequest, format_event, validate_event
 from .workflow_contracts import WorkflowError
 
+NOTIFICATION_ERROR_STATUSES = frozenset({
+    'delivery_failed', 'delivery_uncertain', 'notification_error',
+    'notification_storage_error', 'notification_locked', 'run_deadline', 'run_cancelled',
+})
+NOTIFICATION_STATUSES = NOTIFICATION_ERROR_STATUSES | {
+    'complete', 'unauthorized', 'disabled', 'unconfigured', 'deferred', 'limited',
+}
+
+
+def notification_problem(metrics):
+    return (metrics['status'] in NOTIFICATION_ERROR_STATUSES
+            or metrics['failed'] > 0 or metrics['uncertain'] > 0)
+
 
 def _timestamp() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -330,4 +343,9 @@ class NotificationDispatcher:
             metrics['status'] = error.code if error.code in ('run_deadline', 'run_cancelled') else 'notification_error'
         except (sqlite3.Error, OSError):
             metrics['status'] = 'notification_storage_error'
+        if metrics['status'] in ('complete', 'limited', 'deferred'):
+            if metrics['uncertain']:
+                metrics['status'] = 'delivery_uncertain'
+            elif metrics['failed']:
+                metrics['status'] = 'delivery_failed'
         return metrics

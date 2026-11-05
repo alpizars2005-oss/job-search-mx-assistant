@@ -8,7 +8,8 @@ def create_automation_tables(connection):
           ('running','success','partial','deadline','interrupted','failed')),
         config_digest TEXT NOT NULL, profile_digest TEXT NOT NULL,
         recovered_runs INTEGER NOT NULL DEFAULT 0,
-        reports_json TEXT NOT NULL DEFAULT '[]'
+        reports_json TEXT NOT NULL DEFAULT '[]',
+        notifications_json TEXT
     )''')
     connection.execute('''CREATE TABLE automation_observations (
         vacancy_id INTEGER PRIMARY KEY REFERENCES vacancies(id),
@@ -33,3 +34,8 @@ def create_automation_tables(connection):
         last_status TEXT NOT NULL
     )''')
     connection.execute('''CREATE INDEX automation_runs_started ON automation_runs(started_at)''')
+    connection.execute('''CREATE TABLE automation_notification_health (
+        id INTEGER PRIMARY KEY CHECK(id=1),
+        run_id TEXT NOT NULL REFERENCES automation_runs(id),
+        metrics_json TEXT NOT NULL, updated_at TEXT NOT NULL
+    )''')

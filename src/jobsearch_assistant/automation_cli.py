@@ -17,7 +17,7 @@ from .config import data_home
 from .database import ApplicationDatabase
 from .migrations import SCHEMA_VERSION
 from .models import CandidateProfile
-from .notifications import NotificationDispatcher
+from .notifications import NotificationDispatcher, notification_problem
 from .runtime_control import RunControl, RunLock
 from .sources.config import load_source_config
 from .sources.models import SourceError
@@ -84,16 +84,22 @@ def health(path, max_age_seconds=86400):
                 FROM automation_source_health ORDER BY provider''').fetchall()
             states = connection.execute('SELECT provider,state_json FROM automation_http_state ORDER BY provider').fetchall()
             pending = dict(connection.execute('SELECT status,COUNT(*) FROM notification_outbox GROUP BY status').fetchall())
+            delivery = connection.execute('SELECT run_id,metrics_json,updated_at FROM automation_notification_health WHERE id=1').fetchone()
         if last is None:
             return {**result, 'code': 'no_runs'}
         age = ((datetime.now(timezone.utc) - datetime.fromisoformat(last['finished_at'])).total_seconds()
                if last['finished_at'] else None)
         valid = last['status'] == 'success' and age is not None and 0 <= age <= max_age_seconds
-        return {'healthy': valid, 'code': 'ok' if valid else 'run_unhealthy',
+        delivery_result = None if delivery is None else {
+            'run_id': delivery['run_id'], 'updated_at': delivery['updated_at'],
+            **json.loads(delivery['metrics_json'])}
+        delivery_bad = delivery_result is not None and notification_problem(delivery_result)
+        return {'healthy': valid and not delivery_bad,
+                'code': 'run_unhealthy' if not valid else 'notification_unhealthy' if delivery_bad else 'ok',
                 'last_run_id': last['id'], 'last_status': last['status'],
                 'sources': [dict(row) for row in source_rows],
                 'http_states': [{'source': r['provider'], **json.loads(r['state_json'])} for r in states],
-                'notifications': pending}
+                'notifications': pending, 'last_delivery': delivery_result}
     except (OSError, sqlite3.Error, ValueError, TypeError, KeyError):
         return result
 
@@ -136,10 +142,16 @@ def _run(args, home):
         result = runner.run()
         if args.notify:
             result['notifications'] = NotificationDispatcher(database, telegram, control=control).drain(authorized=True)
+            runner.store.record_notifications(result['run_id'], result['notifications'])
         code = {'success': 0, 'partial': 1, 'failed': 1, 'deadline': 4, 'interrupted': 130}[result['status']]
-        if result.get('notifications', {}).get('status') in (
-                'notification_error', 'notification_storage_error', 'run_deadline', 'run_cancelled') and code == 0:
-            code = 1
+        delivery = result.get('notifications')
+        if delivery is not None:
+            if delivery['status'] == 'run_cancelled':
+                code = 130
+            elif delivery['status'] == 'run_deadline' and code != 130:
+                code = 4
+            elif notification_problem(delivery) and code == 0:
+                code = 1
         return code, result
 
 

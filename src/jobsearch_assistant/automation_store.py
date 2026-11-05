@@ -184,7 +184,7 @@ class AutomationStore:
     def show(self, run_id):
         with self.database._connection() as connection:
             connection.execute('BEGIN')
-            row = connection.execute('''SELECT id,started_at,finished_at,status,recovered_runs,reports_json
+            row = connection.execute('''SELECT id,started_at,finished_at,status,recovered_runs,reports_json,notifications_json
                 FROM automation_runs WHERE id=?''', (run_id,)).fetchone()
             if row is None:
                 raise WorkflowError('unknown_run')
@@ -195,10 +195,38 @@ class AutomationStore:
                 counts[item['change_kind']] += 1
                 if item['classification'] in ('high_priority', 'insufficient_information'):
                     counts[item['classification']] += 1
-        return {'run_id': row['id'], 'started_at': row['started_at'], 'finished_at': row['finished_at'],
+        result = {'run_id': row['id'], 'started_at': row['started_at'], 'finished_at': row['finished_at'],
                 'status': row['status'], 'recovered_runs': row['recovered_runs'],
                 'counts': counts, 'sources': json.loads(row['reports_json']),
                 'dry_run': True, 'auto_submit': False, 'submitted': False}
+        if row['notifications_json'] is not None:
+            result['notifications'] = json.loads(row['notifications_json'])
+        return result
+
+    def record_notifications(self, run_id, metrics):
+        from .notifications import NOTIFICATION_STATUSES, notification_problem
+
+        require_dry_run()
+        if (not isinstance(metrics, dict) or set(metrics) != {
+                'status', 'attempted', 'sent', 'failed', 'uncertain', 'pending'}
+                or metrics['status'] not in NOTIFICATION_STATUSES
+                or any(type(metrics[key]) is not int or not 0 <= metrics[key] <= 2**63 - 1
+                       for key in ('attempted', 'sent', 'failed', 'uncertain', 'pending'))):
+            raise WorkflowError('invalid_notification_metrics')
+        payload = canonical_json(metrics)
+        with self.database._connection() as connection:
+            connection.execute('BEGIN IMMEDIATE')
+            cursor = connection.execute('''UPDATE automation_runs SET notifications_json=?
+                WHERE id=? AND status!='running' ''', (payload, run_id))
+            if not cursor.rowcount:
+                raise WorkflowError('run_not_finished')
+            # A search without delivery, disabled configuration or rate-limited
+            # zero attempts must not erase a previously observed delivery fault.
+            if metrics['attempted'] > 0 or notification_problem(metrics):
+                connection.execute('''INSERT INTO automation_notification_health VALUES (1,?,?,?)
+                    ON CONFLICT(id) DO UPDATE SET run_id=excluded.run_id,
+                    metrics_json=excluded.metrics_json,updated_at=excluded.updated_at''',
+                    (run_id, payload, timestamp()))
 
     def history(self, limit=20):
         if type(limit) is not int or not 1 <= limit <= 100:
