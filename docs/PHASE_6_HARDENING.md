@@ -117,12 +117,12 @@ Luego se reprodujeron 16 casos condicionales y 8 decoraciones horarias adicional
 Los controles positivos/adversarios se conservan junto a la evidencia original,
 offsets y procedencia ATS. Los resultados GREEN/suites/CI del SHA final están en PR.
 
-matching_v6 es la versión final: aun con la gramática corregida, automation_observations
+matching_v7 es la versión final: aun con la gramática corregida, automation_observations
 reutilizaba un high_priority v4 para los mismos inputs. Una prueba RED lo confirmó.
 La regresión de persistencia guarda legacy_v1/v2/v3/v4, compara los bytes de sus
-snapshots antes/después, crea una evaluación v6, reinicia el store y vuelve a
+snapshots antes/después, crea una evaluación v7, reinicia el store y vuelve a
 observar sin cambios: una vacante, cinco evaluaciones (cuatro históricas y la actual),
-misma ID v6 reutilizada y ninguna reescritura histórica. No se migra masivamente.
+misma ID v7 reutilizada y ninguna reescritura histórica. No se migra masivamente.
 
 Riesgo residual: reglas acotadas, sin certificación jurídica o comprensión general.
 Las frases no reconocidas y datos esenciales desconocidos requieren revisión;
@@ -131,7 +131,7 @@ No se afirma validación de producción en Debian 12/LXC o una nueva auditoría 
 
 Checklist antes de integrar: revisar los ejemplos de cuerpo y ubicaciones, sus
 controles de contexto/negación/alternativas, las evidencias en los dos modelos,
-la coexistencia histórica v4/actual v6, y CI 8/8 de ambos HEAD. Incorporar el nuevo
+la coexistencia histórica v4/actual v7, y CI 8/8 de ambos HEAD. Incorporar el nuevo
 #11 a #12 solo por merge, conservar los diez commits propios y comprobar el diff.
 No retargetear, fusionar PRs ni activar servicios dentro de esta corrección.
 
@@ -148,13 +148,23 @@ del puesto restringido, sin equivaler a una mención incidental de sus clientes.
 La cópula del puesto conserva esa restricción; no se amplió el gate a cualquier
 mención de role. Todos estos escenarios tienen aserciones de estado y clasificación.
 
-V5 ya había sido publicado como candidato. Una observación v5 con falso descarte
-se reutilizaba aun corrigiendo el parser; una prueba RED lo confirmó. Por eso la
-versión final es v6: se conservan también snapshots v5, además de legacy_v1/v2/v3/v4.
-No se reescribió el commit público ni se forzó el historial. El revisor inspeccionó
-8bb2695; no se le atribuye revisión posterior ni una invocación de Claude.
+Los candidatos v5 (8bb2695) y v6 (249001e) fueron publicados antes de cerrar las
+revisiones. Las observaciones con falsos descartes se reutilizaban aun corrigiendo
+el parser: pruebas RED para cada caché lo confirmaron. Por eso la versión final
+es v7: conserva también snapshots v5/v6, además de legacy_v1/v2/v3/v4. No se
+reescribieron commits públicos ni se forzó el historial.
 
-Validación local final del parser: 433 pruebas unittest, sin fallos (un skip exclusivo
-de Windows en Linux); pytest: 432 pruebas y 974 subtests, sin fallos, el mismo skip.
+La revisión de seguimiento de 8bb2695..249001e detectó una alternativa México
+tras cierre de paréntesis perdida por el conector anclado. Doce nuevos subtests
+RED reprodujeron alternativas/condiciones en ese límite. Se admite solo un cierre
+inmediato antes del conector. El seguimiento local verificó el parser corregido
+(SHA-256 6489ab5a0c7abf017239680445da02f43bebc1ed115ebf66f61294b35198293a),
+90 tests focales y controles que no cruzan cláusulas independientes: ningún
+Critical/Important pendiente en ese ajuste. También se corrigió la colocación de
+aserciones al insertar el test, conservando todas las anteriores. La revisión no
+cubre cambios posteriores de versión/documentación/caché ni constituye Claude.
+
+Validación local final del parser: 434 pruebas unittest, sin fallos (un skip exclusivo
+de Windows en Linux); pytest: 433 pruebas y 988 subtests, sin fallos, el mismo skip.
 pip check, compileall, ruff E9/F sobre src/tests y git diff --check satisfactorios.
 Los resultados y enlaces de CI por HEAD se registran en los cuerpos de #11 y #12.

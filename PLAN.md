@@ -10,7 +10,7 @@ La misión nueva permite ramas/PRs apilados con dependencia explícita, sin fusi
 ## Estado de hardening de Fase 6 (propuesto, pendiente de integración)
 
 M-01 versiona matching_v3; R-01 corrige ubicaciones con matching_v4.
-R-01b/N-03 amplían condiciones/contexto geográfico con matching_v6 sin cambiar
+R-01b/N-03 amplían condiciones/contexto geográfico con matching_v7 sin cambiar
 snapshots anteriores. M-02 separa cancelación
 local de fallos de proveedor y conserva respuestas/límites ya recibidos. M-03 aplica
 almacenamiento privado común. Telegram se retira: historial protegido por esquema 5,

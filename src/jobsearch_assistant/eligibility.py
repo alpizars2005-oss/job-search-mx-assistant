@@ -157,12 +157,14 @@ def _vacancy_residence_restriction(text: str, match: re.Match, *, location=False
             return False
     # An explicit Mexico alternative/exception means the country list does not
     # establish an incompatible residence requirement. It grants no permission.
-    if re.match(r'\s*,?\s*(?:or|except|excepting|including|o|excepto|incluyendo)\b[^.;]{0,50}\bmexico\b', remaining):
+    # A country label can close its parenthesis before the bound qualifier.
+    qualifier = r'\s*\)?\s*,?\s*'
+    if re.match(qualifier + r'(?:or|except|excepting|including|o|excepto|incluyendo)\b[^.;]{0,50}\bmexico\b', remaining):
         return False
     if (country_only and re.search(
             r'\b(?:if|may|might|could|possibly|potentially|depending|pending|'
             r'subject to|si|quizas|podria)\b', before)) or re.match(
-            r'\s*,?\s*(?:if|unless|subject to|pending|depending on|si|sujeto a)\b', remaining):
+            qualifier + r'(?:if|unless|subject to|pending|depending on|si|sujeto a)\b', remaining):
         return None
     return True
 
