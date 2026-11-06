@@ -1,5 +1,72 @@
 # Plan técnico: automatización de búsqueda de empleo
 
+## Fase 0 del aplicador — puerta de CI y piloto aislado
+
+Este plan usa la numeración del aplicador automático, distinta de las fases
+históricas del repositorio. La línea operativa parte de `main` verificado, no
+de la antigua rama de fuentes.
+
+- [ ] CI: ampliar la matriz histórica de fuentes a 3.10–3.13 en Windows y
+  Ubuntu, sin skips nuevos. Commit atómico para matriz, disparador de la rama
+  y documentación. Tras autorización de push, verificar ocho jobs exitosos
+  para ese SHA exacto. Verificar también ambos HEAD de Fase 6 y el main
+  operativo. **No continuar la ejecución hasta cerrar la puerta de CI.**
+- [ ] GO 2: desde una sesión administrativa ya autorizada en la LAN, verificar
+  identidad, destino y estado de CT 115. Antes de modificar un CT existente
+  tomar `pre-oneshot`; si el ID está libre, preparar primero el baseline
+  Debian 12 sin privilegios, detenido y sin NIC, y tomar el snapshot antes
+  de los cambios del ensayo. No reutilizar un CT de otro propósito.
+  Verificar las direcciones públicas IPv4/IPv6 aplicables del router y
+  aplicar bloqueo desde el firewall de Proxmox acotado al CT, incluyendo el
+  acceso por hairpin si existe. Sin port forwarding. Para esta prueba sin
+  red usar NIC desconectada como segunda barrera. `nesting=1` únicamente
+  en CT 115 por decisión del dueño; verificar que siga siendo no privilegiado.
+  Probar preflight y un one-shot con release local fijada por SHA, cuenta
+  `jobsearch-assistant`, HOME sintético, `DRY_RUN=true`,
+  `AUTO_SUBMIT=false`, `sources=[]` y timers detenidos/deshabilitados.
+  Guardar evidencia del código de salida, flags y cero conexiones/envíos.
+  No validar por sustitución en CT 113 ni forzar rollback sobre datos reales.
+- [ ] Estado único: separar el HOME sintético del HOME privado real.
+  Importar en SQLite mediante staging validado y transacción bajo el RunLock
+  existente, con backup verificado. Fijar el XLSX v30 de 84 filas y aplicar
+  el manifiesto privado de actualizaciones del 5-nov. Conservar evidencia,
+  identidad canónica ATS/requisición, y aliases verificados; sin identidad
+  suficiente, revisar manualmente. Distinguir las dos requisiciones Cursa
+  y el onboarding incompleto de una contratación. Evitar que un reimport
+  antiguo revierta decisiones más recientes. Probar dos importaciones del
+  mismo lote (segunda: cero duplicados y cero cambios) y una revisión
+  posterior que actualice solo sus filas. Bloquear NO REAPLICAR antes de
+  calificar, incluido Touch Support por seis meses desde el 1-oct-2026;
+  cualquier convenio universitario obligatorio es exclusión mientras UTEL
+  no lo permita. Reconciliar otra vez antes de Fase 3; el aplicador de
+  ChatGPT sigue activo hasta acabar Fase 2 del aplicador.
+- [ ] Correo: diseñar envío futuro por Gmail API HTTPS 443, alcance
+  `gmail.send`, con OAuth autorizado por separado. El CT solo necesita
+  `oauth2.googleapis.com` para renovar y `gmail.googleapis.com` para
+  `users.messages.send`. Credencial en directorio privado 0700 y archivo
+  0600 de la cuenta de servicio, fuera del repo y de los logs. Destino
+  institucional en configuración privada. Reserva única por fecha
+  `America/Mexico_City` cuando se confirma el quinto envío real; el límite
+  diario es cinco. Los importados, simulados, borradores y fallos no cuentan.
+  Si el resultado remoto queda incierto, retener para reconciliación;
+  no reintentar a ciegas ni afirmar entrega a partir de un acuse API.
+  Probar con transporte falso: cero a 0–4, uno al quinto, cero tras
+  repetición/reinicio. Sin tokens, red, correo real, SMTP ni timers.
+- [ ] Descubrimiento: reutilizar Greenhouse, Lever y Ashby de `main`.
+  Evaluar el listado público de Workable y añadirlo solo con contrato público
+  verificable y fixtures; no usar la API de cliente autenticada. LinkedIn
+  e Indeed solo enlaces/importación manual, sin scraping ni envío. Cola
+  diaria privada con identidad de vacante, score y razones verificables.
+  Excluir descalificadores antes del umbral **estrictamente >80**; solo
+  trabajo técnico remoto desde México, sin ventas/atención genérica ni
+  exigencia de autorización laboral estadounidense. Mantener fuentes vacías
+  y timers apagados.
+
+Referencias: [Gmail API: send](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages/send)
+y [OAuth de servidor](https://developers.google.com/identity/protocols/oauth2/web-server).
+Cada etapa posterior se entregará como cambio independiente con pruebas,
+sin añadir datos personales ni artefactos privados a Git.
+
 Fecha de auditoría de Fase 1: 2026-11-04. Base histórica: `main` en
 `54c7c9ee21fd88625386799782f40da8b6882a5d`.
 

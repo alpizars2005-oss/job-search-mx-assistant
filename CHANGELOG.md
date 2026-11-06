@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Añadir Python 3.11 a CI de la rama histórica de fuentes en Windows y Ubuntu.
+  Los pushes a esa rama comprueban el commit exacto, con las mismas pruebas
+  y smokes existentes.
+
 - Agregar descubrimiento opt-in de Greenhouse, Lever y Ashby con normalización,
   procedencia y deduplicación en memoria, sin cambios a SQLite o perfiles.
 - Acotar GET por host/ruta, timeout, tamaño, solicitudes, reintentos, backoff con
